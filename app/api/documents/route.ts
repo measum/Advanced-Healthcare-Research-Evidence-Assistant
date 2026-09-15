@@ -2,9 +2,26 @@ import { NextResponse } from "next/server";
 import { getChatGPTUser } from "../../chatgpt-auth";
 import { getDb, getDocumentBucket } from "../../../db";
 import { uploadedDocuments } from "../../../db/schema";
+import { desc, eq } from "drizzle-orm";
 
 const MAX_PDF_BYTES = 25 * 1024 * 1024;
 function safeFilename(name: string): string { return name.replace(/[\\/:*?"<>|\u0000-\u001f]/g, "_").slice(0, 180) || "document.pdf"; }
+
+export async function GET() {
+  const user = await getChatGPTUser();
+  if (!user) return NextResponse.json({ error: "Sign in to view documents." }, { status: 401 });
+  try {
+    const documents = await getDb().select({
+      id: uploadedDocuments.id, originalName: uploadedDocuments.originalName,
+      byteSize: uploadedDocuments.byteSize, processingStatus: uploadedDocuments.processingStatus,
+      createdAt: uploadedDocuments.createdAt,
+    }).from(uploadedDocuments).where(eq(uploadedDocuments.ownerId, user.userId))
+      .orderBy(desc(uploadedDocuments.createdAt)).limit(50);
+    return NextResponse.json({ documents });
+  } catch {
+    return NextResponse.json({ error: "Document storage is unavailable." }, { status: 503 });
+  }
+}
 
 export async function POST(request: Request) {
   const user = await getChatGPTUser();
