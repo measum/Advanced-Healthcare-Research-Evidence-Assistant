@@ -3,6 +3,7 @@ import { z } from "zod";
 import { searchLiterature } from "../../../lib/europe-pmc";
 import { getChatGPTUser } from "../../chatgpt-auth";
 import { recordSearch } from "../../../lib/research-store";
+import { generateResearchDraft } from "../../../lib/research-provider";
 
 const requestSchema = z.object({
   mode: z.enum([
@@ -28,7 +29,15 @@ export async function POST(request: Request) {
     );
   }
 
-  if (payload.data.mode !== "Evidence synthesis") return NextResponse.json({ status: "provider_not_configured", message: "This workflow needs a configured model provider before it can create research content; no claims or citations were generated.", sources: [], safety: { requiresVerifiedSources: true, individualPatientAdvice: false, mode: payload.data.mode } });
+  if (payload.data.mode !== "Evidence synthesis") {
+    try {
+      const draft = await generateResearchDraft(payload.data.mode, payload.data.question);
+      if (draft) return NextResponse.json({ status: "draft_generated", message: draft, sources: [], safety: { requiresVerifiedSources: true, individualPatientAdvice: false, mode: payload.data.mode } });
+    } catch {
+      return NextResponse.json({ status: "provider_unavailable", message: "The model provider is unavailable. No research content, claims, or citations were generated.", sources: [], safety: { requiresVerifiedSources: true, individualPatientAdvice: false, mode: payload.data.mode } }, { status: 503 });
+    }
+    return NextResponse.json({ status: "provider_not_configured", message: "This workflow needs a configured model provider before it can create research content; no claims or citations were generated.", sources: [], safety: { requiresVerifiedSources: true, individualPatientAdvice: false, mode: payload.data.mode } });
+  }
   try {
     const sources = await searchLiterature(payload.data.question);
     const user = await getChatGPTUser();
