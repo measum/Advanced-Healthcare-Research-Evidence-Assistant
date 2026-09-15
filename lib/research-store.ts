@@ -1,11 +1,11 @@
 import { getDb } from "../db";
 import { retrievedSources, searchRuns } from "../db/schema";
-import type { LiteratureRecord } from "./europe-pmc";
+import type { VerifiedLiteratureRecord } from "./crossref";
 
 export async function recordSearch(
   ownerId: string,
   query: string,
-  sources: LiteratureRecord[],
+  sources: VerifiedLiteratureRecord[],
 ): Promise<void> {
   const db = getDb();
   const searchRunId = crypto.randomUUID();
@@ -18,6 +18,7 @@ export async function recordSearch(
       id: crypto.randomUUID(), searchRunId, externalId: source.id, title: source.title,
       journal: source.journal, publicationYear: source.year, doi: source.doi,
       pmid: source.pmid, canonicalUrl: source.url,
+      verificationStatus: source.verificationStatus,
     })),
   ]);
 }

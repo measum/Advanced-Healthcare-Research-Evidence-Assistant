@@ -28,6 +28,7 @@ export const retrievedSources = sqliteTable("retrieved_sources", {
   doi: text("doi"),
   pmid: text("pmid"),
   canonicalUrl: text("canonical_url").notNull(),
+  verificationStatus: text("verification_status").notNull().default("unverified"),
 }, (table) => [
   uniqueIndex("idx_retrieved_sources_run_external").on(table.searchRunId, table.externalId),
 ]);

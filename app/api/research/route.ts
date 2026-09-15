@@ -4,6 +4,7 @@ import { searchLiterature } from "../../../lib/europe-pmc";
 import { getChatGPTUser } from "../../chatgpt-auth";
 import { recordSearch } from "../../../lib/research-store";
 import { generateResearchDraft } from "../../../lib/research-provider";
+import { verifyDoi } from "../../../lib/crossref";
 
 const requestSchema = z.object({
   mode: z.enum([
@@ -39,7 +40,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ status: "provider_not_configured", message: "This workflow needs a configured model provider before it can create research content; no claims or citations were generated.", sources: [], safety: { requiresVerifiedSources: true, individualPatientAdvice: false, mode: payload.data.mode } });
   }
   try {
-    const sources = await searchLiterature(payload.data.question);
+    const sources = await Promise.all((await searchLiterature(payload.data.question)).map(verifyDoi));
     const user = await getChatGPTUser();
     if (user) {
       try {
