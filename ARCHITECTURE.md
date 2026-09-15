@@ -9,6 +9,7 @@ This is a healthcare research copilot. It supports research, evidence synthesis,
 - A responsive research workspace with four task modes and a research activity/evidence desk.
 - Explicit evidence-safety messaging: no unverifiable citation or claim may be presented as fact.
 - An interaction-ready client shell; user questions remain in the local UI until a provider is configured.
+- Live Europe PMC bibliographic retrieval for evidence mode; metadata is never treated as a conclusion.
 
 ## Service boundaries
 
@@ -19,7 +20,7 @@ This is a healthcare research copilot. It supports research, evidence synthesis,
 - **Provider adapter:** a server-only interface for AI providers. It must be configured with an environment secret; no browser key is allowed.
 - **Retrieval adapters:** PubMed/Europe PMC/Crossref/DOI and approved web sources. Each result is parsed, deduplicated, and provenance-stamped.
 - **Evidence service:** attaches source identifiers, publication type, recency, verification status, and certainty notes to individual claims.
-- **Persistence:** D1 tables for projects, conversations, documents, sources, evidence claims, tasks, and audit events. R2 is reserved for uploaded PDFs; extracted text is treated as untrusted.
+- **Persistence:** D1 schema now includes owner-scoped projects, search runs, and retrieved source records. R2 is reserved for uploaded PDFs; extracted text is treated as untrusted.
 
 ## Security requirements
 
