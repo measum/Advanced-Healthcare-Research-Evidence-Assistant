@@ -31,3 +31,15 @@ export const retrievedSources = sqliteTable("retrieved_sources", {
 }, (table) => [
   uniqueIndex("idx_retrieved_sources_run_external").on(table.searchRunId, table.externalId),
 ]);
+
+export const uploadedDocuments = sqliteTable("uploaded_documents", {
+  id: text("id").primaryKey(),
+  ownerId: text("owner_id").notNull(),
+  projectId: text("project_id").references(() => researchProjects.id, { onDelete: "set null" }),
+  storageKey: text("storage_key").notNull(),
+  originalName: text("original_name").notNull(),
+  contentType: text("content_type").notNull(),
+  byteSize: integer("byte_size").notNull(),
+  processingStatus: text("processing_status").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+}, (table) => [index("idx_uploaded_documents_owner_created").on(table.ownerId, table.createdAt)]);
