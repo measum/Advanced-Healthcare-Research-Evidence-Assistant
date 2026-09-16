@@ -1,149 +1,173 @@
 # AIOTIE Research Chatbot — Project Status
 
 **Last updated:** 2026-09-16
-**Repository snapshot:** `d0f81bd`
-**Overall status:** Functional research-workspace prototype. The core chat, literature retrieval, evidence library, project storage, PDF ingestion, and specialist-routing foundations are implemented. Source-grounded workflow depth, safety hardening, and production readiness are still in progress.
+**Repository snapshot:** `arena/01a0a9f1-advanced-healthcare-research-e` (working milestone)
+**Primary user:** Dr. Usman Iqabl
+**Overall status:** The prototype has been hardened and extended with a source-grounded retrieval foundation, evidence-supported gap detection, safe PDF lifecycle states, bounded descriptive statistics, and clean validation. It is not yet a production-complete research platform: OCR, isolated document workers, full systematic review workflows, broad statistical methods, manuscript persistence, observability, and deployment configuration remain.
 
-## Status at a glance
+## Implemented in this milestone
 
-| Area | Current status |
-| --- | --- |
-| Research chat workspace | Implemented and interactive |
-| Workflow routing | Implemented for Evidence Synthesis, Paper Analysis, Protocol Builder, and Statistical Planning |
-| Literature retrieval | Europe PMC retrieval with PubMed/Europe PMC links implemented |
-| DOI verification | Crossref verification implemented; records are marked verified or unverified |
-| AI provider | Server-side OpenAI Responses API adapter implemented; runtime secret required for model-backed output |
-| Local fallback output | Implemented as a prototype scaffold; it must not be treated as verified clinical evidence |
-| PDF upload | PDF-only validation, 25 MB limit, private object-storage path, and durable metadata implemented |
-| PDF text analysis | Basic extraction and structured appraisal implemented; OCR and hardened isolation are not complete |
-| Projects and evidence library | Owner-scoped D1 persistence and library APIs implemented |
-| Authentication | ChatGPT/Sites identity adapter implemented; hosted authentication policy still needs configuration |
-| Automated validation | 9 tests pass and production build passes; lint currently has 8 errors and 12 warnings |
-| Production deployment | Not yet completed |
+### Evidence-grounded retrieval
 
-## Implemented features
+- Europe PMC is now the only literature retrieval source in the deterministic path.
+- Fabricated/random citation fallback records were removed.
+- External retrieval failure returns an empty result and a transparent no-evidence response.
+- Results are normalized, deduplicated by PMID/DOI/title, ranked against query terms, and bounded to a maximum of 20 records.
+- Returned metadata now preserves, when available:
+  - title
+  - authors
+  - journal
+  - year
+  - PMID
+  - PMCID
+  - DOI
+  - publication type
+  - abstract
+  - canonical URL
+  - full-text URL and availability
+  - retrieval timestamp
+- Crossref verification is strict. A Crossref outage is never treated as DOI verification.
+- Verification includes an explicit reason and timestamp.
+- Open-access Europe PMC full text can be retrieved for a small, bounded set of PMCID records using a fixed provider URL. Arbitrary URLs are rejected to reduce SSRF risk.
+- Full text is supplied to the server-side grounded synthesis path but is not returned wholesale to the browser or persisted in the evidence library.
+- The deterministic synthesis fallback reports retrieval status and provenance only. It no longer creates generic effect sizes, sample sizes, p values, confidence intervals, clinical conclusions, or guideline claims.
+- When `OPENAI_API_KEY` is configured and abstracts/full text are available, the Responses API receives a source packet and is instructed to cite packet identifiers, state missing information, and describe disagreement rather than infer unsupported results.
 
-### 1. Research chat and workspace
+### Evidence-supported research gaps and ideas
 
-- Responsive AIOTIE Research workspace with a central composer and response/evidence desk.
-- Four workflow modes:
-  - Evidence synthesis
-  - Paper analysis
-  - Protocol builder
-  - Statistical planning
-- Research history displayed in the session memory view.
-- Copy response, Markdown report export, and BibTeX evidence-library export.
-- Browser voice dictation support with a local fallback when the Web Speech API is unavailable.
-- Interactive project selector, notification panel, profile panel, settings panel, and research-partner status panel.
+- Added `POST /api/research/gaps`.
+- Gap detection is limited to signals observable in the actual retrieval set, including:
+  - missing abstracts
+  - unavailable full text
+  - limited reported publication-type diversity
+  - abstract language indicating uncertainty, heterogeneity, or conflict
+  - insufficient structured information for a defensible gap
+- Each gap includes its observed evidence, potential question, uncertainty label, and supporting source records.
+- Added the Ideas workflow action **Find evidence-supported gaps** and a **What should I research next?** experience.
+- Opportunities are explicitly labeled as opportunities, not established priorities.
+- Static unsupported feasibility scores, publication counts, growth percentages, regulatory alerts, and clinical outcome claims were removed from the visible intelligence UI.
+- Map/trends/signals views now display an explicit insufficient-data state until a live indexed search supplies metrics.
 
-### 2. Research intelligence interface
+### Secure PDF lifecycle and appraisal boundary
 
-- Interactive global research map with geographic filters, zoom controls, research hubs, and hub-specific evidence/protocol actions.
-- Trends and Ideas views with topic exploration actions.
-- Research insights, emerging-topic signals, personalized research interests, and protocol/evidence shortcuts.
-- Systematic-review, manuscript, reviewer, memory, and statistics entry points are present in the UI. Their complete domain workflows are not yet implemented end to end.
+- Added bounded PDF inspection and processing limits:
+  - 25 MB maximum input
+  - 2,000 page processing limit
+  - 2,000,000 extracted-character limit
+  - extraction timeouts around analysis
+- Suspicious PDF active-content markers are rejected before private storage, including JavaScript, launch actions, form-submission actions, and embedded executable content.
+- Extracted document content is treated as untrusted data in model instructions.
+- Document processing statuses now include:
+  - `uploaded`
+  - `processing`
+  - `extracted`
+  - `ocr_required`
+  - `completed`
+  - `failed`
+  - `rejected`
+- Extraction errors, page count, and extraction time are persisted where available.
+- The deterministic paper appraisal fallback reports `Not reported` instead of inventing study design, sample size, effect estimates, risk-of-bias ratings, or safety findings.
+- Model-backed appraisal is instructed to use only the uploaded paper, reject instructions inside the document, and preserve missing fields as `Not reported`.
+- Document deletion is owner-scoped and now requires a browser confirmation.
 
-### 3. Evidence retrieval and verification
+### Descriptive statistics foundation
 
-- Live bibliographic search through Europe PMC.
-- Canonical PubMed and Europe PMC links.
-- Crossref DOI lookup for DOI-bearing records.
-- Explicit `verified` or `unverified` source status.
-- Persistent search runs and retrieved source records for signed-in users.
-- Evidence-safety responses state that metadata is not, by itself, a clinical conclusion.
+- Added `POST /api/statistics` for bounded JSON-row dataset inspection.
+- Added safe local calculations for:
+  - variable type detection
+  - observed/missing counts
+  - unique-value counts
+  - numeric N
+  - mean
+  - median
+  - sample standard deviation
+  - minimum and maximum
+- Non-numeric values are not silently coerced into numbers.
+- The UI now has a Statistics & Data modal that accepts JSON object rows and displays the transparent calculation output and limitations.
+- No numerical result is generated without user-provided data.
 
-### 4. Model and orchestration layer
+### Workspace and stability
 
-- Server-side OpenAI Responses API integration.
-- Runtime-secret-only model configuration; browser code does not receive the provider key.
-- Requests use `store: false`.
-- Provider instructions prohibit invented citations, studies, numerical results, guidelines, and individual patient advice.
-- Intent routing selects Research, Critical Appraisal, Protocol, or Statistics agents and records the routing rationale.
-- If the provider is unavailable or not configured, the application returns a clear status or uses the current local prototype generator, depending on the workflow.
+- Fixed the original `app/page.tsx` lint errors:
+  - unsafe browser Speech Recognition `any` usage
+  - functions referenced before declaration in the initial data effect
+  - unused imports and state
+  - unoptimized logo images
+- Added typed browser Speech Recognition interfaces.
+- Added project editing in the existing project modal using the existing owner-scoped `PATCH /api/projects` route.
+- Added project and document deletion confirmations.
+- Local development keeps the default researcher identity only outside production; production requests with missing identity headers are unauthenticated.
+- Fixed the Vite configuration type error so standalone TypeScript checking passes.
 
-### 5. PDF ingestion and paper appraisal
+## Database changes
 
-- Authenticated PDF upload route with:
-  - PDF MIME-type and filename validation
-  - `%PDF-` signature validation
-  - 25 MB maximum file size
-  - Safe filename normalization
-  - Private R2/object-storage key layout
-- Uploaded document metadata and processing status are persisted in D1.
-- Basic text and metadata extraction supports direct and Flate-compressed PDF streams.
-- Optional model-backed appraisal uploads the PDF to the configured provider, treats the document as untrusted content, and removes the temporary provider file afterward.
-- Structured local appraisal fallback includes design, PICO, endpoints, risk of bias, limitations, generalizability, and what the study does not prove.
-- Saved paper analyses can be retrieved and replaced; document analysis events are audit-recorded.
+Migration added:
 
-### 6. Persistence, authorization, and audit records
+- `drizzle/0005_productive_rachel_grey.sql`
 
-- D1/Drizzle schema includes:
-  - Research projects
-  - Search runs
-  - Retrieved sources
-  - Uploaded documents
-  - Paper analyses
-  - Audit events
-- User-owned queries are filtered by the resolved user ID.
-- Project and document create, update/delete, and list operations are available at the API layer.
-- Storage failures are handled without claiming that an unsuccessful upload or analysis was saved.
-- Audit events are written for project and document mutations and document analysis.
-- In local development without injected platform identity headers, the existing adapter uses the configured development researcher identity; production access policy still needs to be configured and verified.
+The migration extends retrieved source records with authors, publication type, abstract, PMCID, full-text metadata, verification reason, and retrieval timestamp. It extends uploaded document records with extraction error, page count, and extraction timestamp.
+
+`db/index.ts` also contains additive compatibility statements for existing local preview databases. Deployed environments should apply the generated migration in order.
 
 ## Current API surface
 
 | Route | Purpose |
 | --- | --- |
-| `POST /api/research` | Routes the request, retrieves current literature for Evidence Synthesis, verifies DOI metadata, and optionally saves search history. Other modes use the configured provider or prototype fallback. |
+| `POST /api/research` | Routes a workflow, retrieves Europe PMC records, verifies DOI metadata, retrieves bounded Open Access full text when available, optionally persists the evidence packet, and returns a grounded synthesis or transparent retrieval report. |
+| `POST /api/research/gaps` | Retrieves and verifies literature, identifies only observable evidence gaps, creates uncertainty-labeled research opportunities, and optionally persists the search. |
 | `GET, POST, PATCH, DELETE /api/projects` | Lists, creates, updates, and deletes owner-scoped research projects. |
-| `GET, POST, DELETE /api/documents` | Lists, validates/uploads, and deletes owner-scoped PDF documents. |
-| `GET, POST /api/documents/:id/analyze` | Reads a saved analysis or analyzes an uploaded PDF and persists the result. |
-| `GET /api/library` | Lists the signed-in researcher's saved source history. |
-
-## Known limitations and risks
-
-### Evidence-grounding priority
-
-The current local evidence-synthesis fallback is a demonstration scaffold. It includes generic example effect sizes and conclusions rather than deriving every claim from retrieved study-level data. It must be replaced with a source-grounded synthesis pipeline before the chatbot is used for clinical, policy, protocol, or publication decisions. All fallback outputs should be treated as drafts only.
-
-### Document processing
-
-- PDF extraction is a basic parser and does not yet provide OCR for scanned documents.
-- Extraction is not yet isolated in a dedicated worker or sandbox.
-- Malicious-document screening, active-content handling, extraction quotas, and comprehensive prompt-injection defenses remain to be completed.
-- Full-text evidence extraction with claim-level provenance is not implemented.
-
-### Workflow depth
-
-- Systematic review screening, deduplication, extraction, risk-of-bias matrices, meta-analysis, and PRISMA flow generation are not complete.
-- Statistical planning currently produces a structured draft; it does not execute calculations, inspect datasets, or provide a statistical sandbox.
-- Protocol, manuscript, reviewer, grant, and reporting-guideline experiences are currently UI entry points and provider/template prompts rather than complete specialist products.
-- Project editing is available in the API but not yet exposed as a complete editing flow in the workspace.
-- Voice interaction currently supports dictation only; speech output is not implemented.
-
-### Production readiness
-
-- Configure and verify ChatGPT/Sites authentication and authorization policy.
-- Provision Cloudflare D1/R2 and apply migrations in the target environment.
-- Configure `OPENAI_API_KEY` and optional `OPENAI_MODEL` as runtime secrets.
-- Add rate limiting, monitoring, end-to-end tests, structured audit review, and a security/privacy review.
-- Establish approved data-handling procedures for sensitive research data and institutional requirements.
-- Never place protected health information in prompts without an approved data-processing path.
+| `GET, POST, DELETE /api/documents` | Lists, validates, scans, uploads, and deletes owner-scoped PDF documents. |
+| `GET, POST /api/documents/:id/analyze` | Reads a saved appraisal or processes an uploaded paper with extraction/status tracking. |
+| `GET /api/library` | Lists the signed-in researcher’s saved source metadata and verification state. |
+| `POST /api/statistics` | Runs bounded descriptive inspection on a user-provided JSON dataset. |
 
 ## Validation snapshot
 
-Validation was run against the repository snapshot on 2026-09-16:
+Validation was run after the milestone changes on 2026-09-16:
 
-- `npm test`: **passed** — 4 test files, 9 tests.
+- `npm test`: **passed** — 7 test files, 19 tests.
+- `npm run lint`: **passed** — no errors or warnings.
 - `npm run build`: **passed** — deployable build completed.
-- `npm run lint`: **not clean** — 8 errors and 12 warnings, concentrated in `app/page.tsx` (unsafe `any` values, hook declaration/order issues, unused imports/state, and image warnings).
-- `git diff --check`: **passed**.
-- Working tree: **clean** after validation; generated dependency/build directories are ignored.
+- `npx tsc --noEmit`: **passed**.
+- `git diff --check`: **passed** for the source changes before commit.
 
-## Recommended next milestone
+## Remaining blockers — not complete yet
 
-1. Fix the `app/page.tsx` lint errors and warnings that affect maintainability.
-2. Replace generic evidence fallback claims with a provenance-preserving, source-grounded synthesis pipeline.
-3. Build an isolated PDF-processing worker with extraction limits, OCR support, malicious-document screening, and prompt-injection handling.
-4. Add end-to-end tests for authentication, retrieval, uploads, analysis persistence, and failure paths.
-5. Deploy only after the provider, D1, R2, authentication, privacy, and monitoring configuration has been reviewed.
+### Full-text processing
+
+- OCR for scanned PDFs is not implemented. The application correctly moves textless documents to `ocr_required` rather than pretending extraction succeeded.
+- Extraction is not yet an isolated worker or sandbox with an independently enforced memory limit.
+- Page-level provenance is approximate for PDFs with multiple content streams.
+- Malformed/encrypted PDF handling needs a dedicated production parser and security review.
+- A provider-assisted OCR path still requires deployment configuration and a reviewed data-processing agreement.
+
+### Research workflows
+
+- Systematic-review screening, deduplication, full-text decisions, extraction tables, risk-of-bias matrices, meta-analysis, GRADE, and PRISMA export are not end-to-end products.
+- Statistics currently provides descriptive dataset inspection only. Inferential tests, regression, survival, causal inference, multiple imputation, power calculations, dataset upload formats, and analysis export remain to be implemented and independently tested.
+- Protocol generation, manuscript workspace, reviewer mode, grant support, reporting-guideline checklists, and research packages remain mostly UI entry points or draft templates rather than persisted end-to-end workflows.
+- Evidence-grounded opportunity detection is retrieval-set level, not a complete systematic review and not a field-wide novelty guarantee.
+- Research memory is currently session/UI-oriented and does not yet provide complete persistent view/edit/export/delete controls.
+- Voice currently provides optional browser dictation; transcription persistence and text-to-speech are not implemented.
+
+### Production/security/operations
+
+- Configure and verify hosted authentication and authorization policy.
+- Apply D1 migrations and provision private R2 in the target environment.
+- Configure `OPENAI_API_KEY` and optional `OPENAI_MODEL` as runtime secrets.
+- Add rate limiting, request tracing, monitoring, alerting, and structured audit review.
+- Add authenticated integration and end-to-end tests, including IDOR, cross-user document access, provider failure, storage failure, malformed PDF, active-content PDF, and prompt-injection cases.
+- Complete SSRF, XSS, CSRF, abuse, privacy, PHI, dependency, and deployment security review.
+- Establish approved data-handling procedures before sending sensitive research data to an external model provider.
+
+## Recommended next implementation order
+
+1. Build an isolated document worker with OCR, page-level extraction provenance, and a reviewed malicious-document pipeline.
+2. Add persisted evidence-extraction records and claim-level source/page references.
+3. Implement systematic-review state and screening/extraction exports.
+4. Expand the statistics engine with tested calculations and a safe dataset workspace.
+5. Add persistent protocol, manuscript, reviewer, memory, and research-package entities.
+6. Add authenticated integration/E2E tests and production observability.
+7. Deploy only after D1, R2, authentication, provider secrets, privacy, and security review are complete.
+
+**Important:** This status intentionally does not call the product complete. Major workflows remain clearly marked as unavailable or draft-only until they perform real, source-grounded, persisted work.

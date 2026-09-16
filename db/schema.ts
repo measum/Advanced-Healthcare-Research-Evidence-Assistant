@@ -23,12 +23,20 @@ export const retrievedSources = sqliteTable("retrieved_sources", {
   searchRunId: text("search_run_id").notNull().references(() => searchRuns.id, { onDelete: "cascade" }),
   externalId: text("external_id").notNull(),
   title: text("title").notNull(),
+  authors: text("authors"),
   journal: text("journal"),
   publicationYear: text("publication_year"),
+  publicationType: text("publication_type"),
+  abstract: text("abstract"),
   doi: text("doi"),
   pmid: text("pmid"),
+  pmcid: text("pmcid"),
   canonicalUrl: text("canonical_url").notNull(),
+  fullTextUrl: text("full_text_url"),
+  fullTextAvailable: integer("full_text_available", { mode: "boolean" }).notNull().default(false),
   verificationStatus: text("verification_status").notNull().default("unverified"),
+  verificationReason: text("verification_reason"),
+  retrievedAt: integer("retrieved_at", { mode: "timestamp" }).notNull(),
 }, (table) => [
   uniqueIndex("idx_retrieved_sources_run_external").on(table.searchRunId, table.externalId),
 ]);
@@ -42,6 +50,9 @@ export const uploadedDocuments = sqliteTable("uploaded_documents", {
   contentType: text("content_type").notNull(),
   byteSize: integer("byte_size").notNull(),
   processingStatus: text("processing_status").notNull(),
+  extractionError: text("extraction_error"),
+  pageCount: integer("page_count"),
+  extractedAt: integer("extracted_at", { mode: "timestamp" }),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 }, (table) => [index("idx_uploaded_documents_owner_created").on(table.ownerId, table.createdAt)]);
 

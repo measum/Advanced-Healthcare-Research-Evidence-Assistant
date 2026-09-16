@@ -10,6 +10,7 @@ const createProjectSchema = z.object({
   name: z.string().trim().min(3).max(120),
   question: z.string().trim().max(8_000).optional(),
 });
+const updateProjectSchema = createProjectSchema.extend({ id: z.string().trim().min(1).max(200) });
 
 export async function GET() {
   const user = await getChatGPTUser();
@@ -46,17 +47,17 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   const user = await getChatGPTUser();
   if (!user) return NextResponse.json({ error: "Sign in to update a project." }, { status: 401 });
-  const body = await request.json().catch(() => null) as { id?: string; name?: string; question?: string } | null;
-  if (!body?.id || typeof body.name !== "string" || body.name.trim().length < 3) {
-    return NextResponse.json({ error: "Provide a valid project id and a name with at least 3 characters." }, { status: 400 });
+  const payload = updateProjectSchema.safeParse(await request.json().catch(() => null));
+  if (!payload.success) {
+    return NextResponse.json({ error: "Provide a valid project id, a name between 3 and 120 characters, and an optional question up to 8,000 characters." }, { status: 400 });
   }
   try {
     await ensureDbInitialized();
     const now = new Date();
     await getDb().update(researchProjects)
-      .set({ name: body.name.trim(), question: body.question?.trim() || null, updatedAt: now })
-      .where(and(eq(researchProjects.id, body.id), eq(researchProjects.ownerId, user.userId)));
-    try { await writeAuditEvent(user.userId, "updated", "research_project", body.id); } catch { /* preserve update */ }
+      .set({ name: payload.data.name, question: payload.data.question || null, updatedAt: now })
+      .where(and(eq(researchProjects.id, payload.data.id), eq(researchProjects.ownerId, user.userId)));
+    try { await writeAuditEvent(user.userId, "updated", "research_project", payload.data.id); } catch { /* preserve update */ }
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ error: "Unable to update project." }, { status: 503 });

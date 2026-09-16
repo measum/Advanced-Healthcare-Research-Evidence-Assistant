@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   Bell,
@@ -14,18 +15,13 @@ import {
   ExternalLink,
   FileSearch,
   FileText,
-  Filter,
-  FlaskConical,
-  FolderPlus,
   Globe2,
   HeartPulse,
   History,
-  Info,
   Layers,
   Lightbulb,
   Map,
   Mic,
-  Minus,
   Paperclip,
   Plus,
   RefreshCw,
@@ -33,15 +29,12 @@ import {
   Search,
   Send,
   Settings,
-  Share2,
   ShieldCheck,
   Sparkles,
-  Stethoscope,
   Trash2,
   TrendingUp,
   UploadCloud,
   UserRound,
-  Volume2,
   X,
   ZoomIn,
   ZoomOut,
@@ -49,17 +42,31 @@ import {
 
 type Mode = "Evidence synthesis" | "Paper analysis" | "Protocol builder" | "Statistical planning";
 type Project = { id: string; name: string; question: string | null; createdAt?: string; updatedAt?: string };
-type Document = { id: string; originalName: string; byteSize: number; processingStatus: string; createdAt?: string };
+type Document = {
+  id: string;
+  originalName: string;
+  byteSize: number;
+  processingStatus: "uploaded" | "queued" | "processing" | "extracted" | "ocr_required" | "completed" | "failed" | "rejected" | string;
+  extractionError?: string | null;
+  pageCount?: number | null;
+  createdAt?: string;
+};
 type Source = {
   id: string;
   title: string;
   journal: string | null;
   year: string | null;
   url: string;
+  fullTextUrl?: string | null;
+  fullTextAvailable?: boolean;
   doi?: string | null;
   pmid?: string | null;
+  pmcid?: string | null;
   authors?: string | null;
+  publicationType?: string | null;
+  abstract?: string | null;
   verificationStatus: "verified" | "unverified";
+  verificationReason?: string;
 };
 
 type LibrarySource = {
@@ -69,8 +76,12 @@ type LibrarySource = {
   year: string | null;
   doi: string | null;
   pmid: string | null;
+  pmcid?: string | null;
+  fullTextUrl?: string | null;
+  fullTextAvailable?: boolean;
   url: string;
   verificationStatus: "verified" | "unverified";
+  verificationReason?: string | null;
   query: string;
   retrievedAt: string;
 };
@@ -89,21 +100,56 @@ type ResearchHub = {
   query: string;
 };
 
+type ResearchGap = {
+  id: string;
+  topic: string;
+  evidenceCount: number;
+  observedGap: string;
+  potentialQuestion: string;
+  rationale: string;
+  evidenceConfidence: string;
+  supportingSources: { id: string; title: string; url: string; verificationStatus: "verified" | "unverified"; excerpt: string | null }[];
+};
+
+type ResearchOpportunity = {
+  id: string;
+  title: string;
+  researchQuestion: string;
+  whyThisQuestionExists: string;
+  researchGap: string;
+  suggestedStudyDesign: string;
+  population: string;
+  primaryOutcome: string;
+  secondaryOutcomes: string;
+  possibleStatisticalApproach: string;
+  keyRisks: string;
+  relevantPapers: ResearchGap["supportingSources"];
+  evidenceConfidence: string;
+  uncertainty: string;
+};
+
+type DatasetSummary = {
+  rowCount: number;
+  variables: { name: string; type: string; observed: number; missing: number; uniqueValues: number }[];
+  numeric: { column: string; n: number; missing: number; mean: number | null; median: number | null; standardDeviation: number | null; minimum: number | null; maximum: number | null }[];
+  limitations: string[];
+};
+
 const researchHubs: ResearchHub[] = [
-  { id: "boston", name: "Broad Institute / Harvard / MIT", city: "Boston", country: "United States", region: "North America", x: 275, y: 155, trials: "8,420 trials", specialty: "Oncology, mRNA & Gene Therapy", color: "#38d9ff", query: "Clinical trials and gene editing therapies from Boston Broad Institute Harvard" },
-  { id: "sanfrancisco", name: "Stanford / UCSF Biomedical Data Science", city: "San Francisco", country: "United States", region: "North America", x: 160, y: 165, trials: "5,910 trials", specialty: "AI in Medicine, Radiology & Digital Health", color: "#b56dff", query: "Diagnostic AI and foundation models in radiology Stanford" },
-  { id: "bethesda", name: "NIH Clinical Center / FDA", city: "Bethesda", country: "United States", region: "North America", x: 260, y: 175, trials: "6,850 trials", specialty: "Rare Diseases & Precision Medicine", color: "#38d9ff", query: "NIH clinical center precision oncology trials" },
-  { id: "london", name: "Wellcome Trust / MRC / NHS England", city: "London & Oxford", country: "United Kingdom", region: "Europe", x: 470, y: 130, trials: "6,190 trials", specialty: "Genomics & Real-World Evidence", color: "#42f0ba", query: "Genomic medicine and NHS randomized clinical trials Oxford" },
-  { id: "geneva", name: "WHO / Novartis / Roche Research Hub", city: "Geneva & Basel", country: "Switzerland", region: "Europe", x: 505, y: 155, trials: "5,340 trials", specialty: "Global Health & Multicenter Oncology", color: "#42f0ba", query: "WHO clinical guidelines and oncology trials Basel" },
-  { id: "stockholm", name: "Karolinska Institute / Nobel Forum", city: "Stockholm", country: "Sweden", region: "Europe", x: 525, y: 95, trials: "3,120 trials", specialty: "Population Registries & Epidemiology", color: "#42f0ba", query: "Karolinska Institute registry trials and biomarker discovery" },
-  { id: "tokyo", name: "RIKEN / Kyoto University / PMDA", city: "Tokyo & Kyoto", country: "Japan", region: "Asia-Pacific", x: 870, y: 185, trials: "4,210 trials", specialty: "Regenerative Medicine & Stem Cells", color: "#ff54d4", query: "Regenerative medicine iPS cells clinical trials Japan" },
-  { id: "beijing", name: "Peking Union / Chinese Academy of Medical Sciences", city: "Beijing & Seoul", country: "East Asia", region: "Asia-Pacific", x: 810, y: 175, trials: "5,870 trials", specialty: "Multi-Omics & Targeted Oncology", color: "#ff54d4", query: "Multi-omics biomarker clinical trials East Asia" },
-  { id: "singapore", name: "Biopolis / A*STAR Biomedical Sciences", city: "Singapore", country: "Singapore", region: "Asia-Pacific", x: 755, y: 300, trials: "3,450 trials", specialty: "Precision Medicine & Infectious Disease", color: "#ff54d4", query: "Biopolis precision medicine and infectious disease trials" },
-  { id: "lahore", name: "AIOTIE Biomedical Informatics & Digital Health Hub", city: "Lahore & Islamabad", country: "Pakistan", region: "Middle East & South Asia", x: 660, y: 215, trials: "1,480 trials", specialty: "Digital Health, Resilient Health Systems & Informatics", color: "#38d9ff", query: "AIOTIE digital health and biomedical informatics resilient health systems" },
-  { id: "riyadh", name: "King Faisal Specialist Hospital & Research Centre", city: "Riyadh & Dubai", country: "Saudi Arabia / UAE", region: "Middle East & South Asia", x: 600, y: 235, trials: "1,620 trials", specialty: "Genomic Medicine & Metabolic Health", color: "#ffa56e", query: "Genomic medicine and diabetes research Middle East" },
-  { id: "melbourne", name: "Walter & Eliza Hall Institute / Monash", city: "Melbourne & Sydney", country: "Australia", region: "Asia-Pacific", x: 840, y: 420, trials: "2,890 trials", specialty: "Immunology & Medical Devices", color: "#46eea4", query: "Immunology clinical trials Australia Walter and Eliza Hall" },
-  { id: "saopaulo", name: "Fiocruz / Butantan Institute", city: "São Paulo", country: "Brazil", region: "Latin America", x: 300, y: 390, trials: "1,740 trials", specialty: "Tropical Medicine & Vaccine Development", color: "#ff6f7b", query: "Tropical medicine and infectious disease trials Latin America" },
-  { id: "nairobi", name: "Africa CDC / KEMRI Wellcome Trust", city: "Nairobi & Cape Town", country: "Kenya & South Africa", region: "Africa", x: 550, y: 385, trials: "1,420 trials", specialty: "Pathogen Genomics & Epidemiological Surveillance", color: "#ffa56e", query: "Pathogen genomics and clinical surveillance Africa CDC" },
+  { id: "boston", name: "Broad Institute / Harvard / MIT", city: "Boston", country: "United States", region: "North America", x: 275, y: 155, trials: "Live activity data unavailable", specialty: "Oncology, mRNA & Gene Therapy", color: "#38d9ff", query: "Clinical trials and gene editing therapies from Boston Broad Institute Harvard" },
+  { id: "sanfrancisco", name: "Stanford / UCSF Biomedical Data Science", city: "San Francisco", country: "United States", region: "North America", x: 160, y: 165, trials: "Live activity data unavailable", specialty: "AI in Medicine, Radiology & Digital Health", color: "#b56dff", query: "Diagnostic AI and foundation models in radiology Stanford" },
+  { id: "bethesda", name: "NIH Clinical Center / FDA", city: "Bethesda", country: "United States", region: "North America", x: 260, y: 175, trials: "Live activity data unavailable", specialty: "Rare Diseases & Precision Medicine", color: "#38d9ff", query: "NIH clinical center precision oncology trials" },
+  { id: "london", name: "Wellcome Trust / MRC / NHS England", city: "London & Oxford", country: "United Kingdom", region: "Europe", x: 470, y: 130, trials: "Live activity data unavailable", specialty: "Genomics & Real-World Evidence", color: "#42f0ba", query: "Genomic medicine and NHS randomized clinical trials Oxford" },
+  { id: "geneva", name: "WHO / Novartis / Roche Research Hub", city: "Geneva & Basel", country: "Switzerland", region: "Europe", x: 505, y: 155, trials: "Live activity data unavailable", specialty: "Global Health & Multicenter Oncology", color: "#42f0ba", query: "WHO clinical guidelines and oncology trials Basel" },
+  { id: "stockholm", name: "Karolinska Institute / Nobel Forum", city: "Stockholm", country: "Sweden", region: "Europe", x: 525, y: 95, trials: "Live activity data unavailable", specialty: "Population Registries & Epidemiology", color: "#42f0ba", query: "Karolinska Institute registry trials and biomarker discovery" },
+  { id: "tokyo", name: "RIKEN / Kyoto University / PMDA", city: "Tokyo & Kyoto", country: "Japan", region: "Asia-Pacific", x: 870, y: 185, trials: "Live activity data unavailable", specialty: "Regenerative Medicine & Stem Cells", color: "#ff54d4", query: "Regenerative medicine iPS cells clinical trials Japan" },
+  { id: "beijing", name: "Peking Union / Chinese Academy of Medical Sciences", city: "Beijing & Seoul", country: "East Asia", region: "Asia-Pacific", x: 810, y: 175, trials: "Live activity data unavailable", specialty: "Multi-Omics & Targeted Oncology", color: "#ff54d4", query: "Multi-omics biomarker clinical trials East Asia" },
+  { id: "singapore", name: "Biopolis / A*STAR Biomedical Sciences", city: "Singapore", country: "Singapore", region: "Asia-Pacific", x: 755, y: 300, trials: "Live activity data unavailable", specialty: "Precision Medicine & Infectious Disease", color: "#ff54d4", query: "Biopolis precision medicine and infectious disease trials" },
+  { id: "lahore", name: "AIOTIE Biomedical Informatics & Digital Health Hub", city: "Lahore & Islamabad", country: "Pakistan", region: "Middle East & South Asia", x: 660, y: 215, trials: "Live activity data unavailable", specialty: "Digital Health, Resilient Health Systems & Informatics", color: "#38d9ff", query: "AIOTIE digital health and biomedical informatics resilient health systems" },
+  { id: "riyadh", name: "King Faisal Specialist Hospital & Research Centre", city: "Riyadh & Dubai", country: "Saudi Arabia / UAE", region: "Middle East & South Asia", x: 600, y: 235, trials: "Live activity data unavailable", specialty: "Genomic Medicine & Metabolic Health", color: "#ffa56e", query: "Genomic medicine and diabetes research Middle East" },
+  { id: "melbourne", name: "Walter & Eliza Hall Institute / Monash", city: "Melbourne & Sydney", country: "Australia", region: "Asia-Pacific", x: 840, y: 420, trials: "Live activity data unavailable", specialty: "Immunology & Medical Devices", color: "#46eea4", query: "Immunology clinical trials Australia Walter and Eliza Hall" },
+  { id: "saopaulo", name: "Fiocruz / Butantan Institute", city: "São Paulo", country: "Brazil", region: "Latin America", x: 300, y: 390, trials: "Live activity data unavailable", specialty: "Tropical Medicine & Vaccine Development", color: "#ff6f7b", query: "Tropical medicine and infectious disease trials Latin America" },
+  { id: "nairobi", name: "Africa CDC / KEMRI Wellcome Trust", city: "Nairobi & Cape Town", country: "Kenya & South Africa", region: "Africa", x: 550, y: 385, trials: "Live activity data unavailable", specialty: "Pathogen Genomics & Epidemiological Surveillance", color: "#ffa56e", query: "Pathogen genomics and clinical surveillance Africa CDC" },
 ];
 
 const modes: { name: Mode; description: string; prompt: string; defaultQuery: string; icon: typeof Sparkles }[] = [
@@ -120,6 +166,29 @@ const quickPrompts = [
   { label: "Create a search strategy", text: "Draft a comprehensive PubMed / Europe PMC Boolean search strategy and statistical analysis plan for SGLT2 inhibitors in heart failure with preserved ejection fraction.", mode: "Statistical planning" as Mode },
 ];
 
+type SpeechRecognitionResultLike = { [index: number]: { transcript: string } };
+type SpeechRecognitionEventLike = Event & { results: ArrayLike<SpeechRecognitionResultLike> };
+type SpeechRecognitionLike = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onstart: (() => void) | null;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+type SpeechRecognitionWindow = Window & {
+  SpeechRecognition?: SpeechRecognitionConstructor;
+  webkitSpeechRecognition?: SpeechRecognitionConstructor;
+};
+
+function isAnalysisComplete(status: string): boolean {
+  return status === "completed" || status === "analyzed";
+}
+
 export default function Home() {
   // Core state
   const [mode, setMode] = useState<Mode>("Evidence synthesis");
@@ -134,6 +203,13 @@ export default function Home() {
   const [savedLibrary, setSavedLibrary] = useState<LibrarySource[]>([]);
   const [analysis, setAnalysis] = useState("");
   const [activeAnalysisDoc, setActiveAnalysisDoc] = useState<Document | null>(null);
+  const [gapResults, setGapResults] = useState<ResearchGap[]>([]);
+  const [ideaResults, setIdeaResults] = useState<ResearchOpportunity[]>([]);
+  const [isGapSearching, setIsGapSearching] = useState(false);
+  const [gapError, setGapError] = useState("");
+  const [datasetSummary, setDatasetSummary] = useState<DatasetSummary | null>(null);
+  const [datasetError, setDatasetError] = useState("");
+  const [isDatasetAnalyzing, setIsDatasetAnalyzing] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [searchStatusText, setSearchStatusText] = useState("");
   const [copied, setCopied] = useState(false);
@@ -157,6 +233,7 @@ export default function Home() {
 
   // Modals & Drawers
   const [showProjectModal, setShowProjectModal] = useState(false);
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectQuestion, setNewProjectQuestion] = useState("");
   const [projectError, setProjectError] = useState("");
@@ -167,6 +244,7 @@ export default function Home() {
   const [showDocumentsModal, setShowDocumentsModal] = useState(false);
   const [showSystematicModal, setShowSystematicModal] = useState(false);
   const [showManuscriptModal, setShowManuscriptModal] = useState(false);
+  const [showStatisticsModal, setShowStatisticsModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showMemoryModal, setShowMemoryModal] = useState(false);
 
@@ -175,8 +253,9 @@ export default function Home() {
 
   // Refs
   const fileInput = useRef<HTMLInputElement>(null);
+  const datasetFileInput = useRef<HTMLInputElement>(null);
   const composerInputRef = useRef<HTMLTextAreaElement>(null);
-  const speechRecognitionRef = useRef<any>(null);
+  const speechRecognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   const activeModeInfo = useMemo(() => modes.find((item) => item.name === mode)!, [mode]);
 
@@ -186,53 +265,55 @@ export default function Home() {
     return researchHubs.filter((h) => h.region === regionFilter);
   }, [regionFilter]);
 
-  // Load initial data
-  useEffect(() => {
-    void fetchProjects();
-    void fetchDocuments();
-    void fetchLibrary();
-  }, []);
-
-  const fetchProjects = async () => {
+  const fetchProjects = useCallback(async () => {
     try {
       const res = await fetch("/api/projects");
       if (res.ok) {
         const data = (await res.json()) as { projects: Project[] };
-        setProjects(data.projects || []);
-        if (data.projects?.length && !activeProject) {
-          setActiveProject(data.projects[0]);
-        }
+        setProjects(data.projects ?? []);
+        setActiveProject((current) => current ?? data.projects?.[0] ?? null);
       }
     } catch {
       // Ignored
     }
-  };
+  }, []);
 
-  const fetchDocuments = async () => {
+  const fetchDocuments = useCallback(async () => {
     try {
       const res = await fetch("/api/documents");
       if (res.ok) {
         const data = (await res.json()) as { documents: Document[] };
-        setDocuments(data.documents || []);
+        setDocuments(data.documents ?? []);
       }
     } catch {
       // Ignored
     }
-  };
+  }, []);
 
-  const fetchLibrary = async () => {
+  const fetchLibrary = useCallback(async () => {
     try {
       const res = await fetch("/api/library");
       if (res.ok) {
         const data = (await res.json()) as { sources: LibrarySource[] };
-        setSavedLibrary(data.sources || []);
+        setSavedLibrary(data.sources ?? []);
       }
     } catch {
       // Ignored
     }
-  };
+  }, []);
 
-  // Create project
+  // Load initial data after mount so network responses, not the effect body,
+  // drive the state updates.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void fetchProjects();
+      void fetchDocuments();
+      void fetchLibrary();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [fetchDocuments, fetchLibrary, fetchProjects]);
+
+  // Create or update project
   const createProject = async () => {
     const name = newProjectName.trim();
     if (name.length < 3) {
@@ -240,19 +321,31 @@ export default function Home() {
       return;
     }
     setProjectError("Saving project…");
+    const isEditing = Boolean(editingProjectId);
     try {
       const res = await fetch("/api/projects", {
-        method: "POST",
+        method: isEditing ? "PATCH" : "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name, question: newProjectQuestion.trim() || undefined }),
+        body: JSON.stringify({
+          ...(editingProjectId ? { id: editingProjectId } : {}),
+          name,
+          question: newProjectQuestion.trim() || undefined,
+        }),
       });
       const data = (await res.json()) as { project?: Project; error?: string };
-      if (!res.ok || !data.project) {
-        setProjectError(data.error ?? "Failed to create project.");
+      if (!res.ok || (isEditing ? !data : !data.project)) {
+        setProjectError(data.error ?? `Failed to ${isEditing ? "update" : "create"} project.`);
         return;
       }
-      setProjects((prev) => [data.project!, ...prev]);
-      setActiveProject(data.project);
+      if (isEditing && editingProjectId) {
+        const updatedProject: Project = { id: editingProjectId, name, question: newProjectQuestion.trim() || null };
+        setProjects((prev) => prev.map((project) => project.id === editingProjectId ? { ...project, ...updatedProject } : project));
+        setActiveProject((current) => current?.id === editingProjectId ? { ...current, ...updatedProject } : current);
+      } else if (data.project) {
+        setProjects((prev) => [data.project!, ...prev]);
+        setActiveProject(data.project);
+      }
+      setEditingProjectId(null);
       setNewProjectName("");
       setNewProjectQuestion("");
       setProjectError("");
@@ -264,12 +357,19 @@ export default function Home() {
 
   // Delete project
   const deleteProject = async (id: string) => {
+    if (!window.confirm("Delete this research project and its linked records?")) return;
     try {
       const res = await fetch(`/api/projects?id=${encodeURIComponent(id)}`, { method: "DELETE" });
       if (res.ok) {
-        setProjects((prev) => prev.filter((p) => p.id !== id));
-        if (activeProject?.id === id) {
-          setActiveProject(projects.find((p) => p.id !== id) || null);
+        setProjects((prev) => {
+          const next = prev.filter((p) => p.id !== id);
+          if (activeProject?.id === id) setActiveProject(next[0] ?? null);
+          return next;
+        });
+        if (editingProjectId === id) {
+          setEditingProjectId(null);
+          setNewProjectName("");
+          setNewProjectQuestion("");
         }
       }
     } catch {
@@ -300,6 +400,7 @@ export default function Home() {
 
   // Delete document
   const deleteDocument = async (id: string) => {
+    if (!window.confirm("Delete this uploaded paper and its saved analysis?")) return;
     try {
       const res = await fetch(`/api/documents?id=${encodeURIComponent(id)}`, { method: "DELETE" });
       if (res.ok) {
@@ -323,12 +424,12 @@ export default function Home() {
     scrollToResponse();
     try {
       const response = await fetch(`/api/documents/${doc.id}/analyze`, { method: "POST" });
-      const result = (await response.json()) as { analysis?: string; error?: string };
+      const result = (await response.json()) as { analysis?: string; error?: string; status?: string };
       if (!response.ok || !result.analysis) {
         setReply(result.error ?? "The paper could not be analyzed.");
         return;
       }
-      setDocuments((current) => current.map((item) => (item.id === doc.id ? { ...item, processingStatus: "analyzed" } : item)));
+      setDocuments((current) => current.map((item) => (item.id === doc.id ? { ...item, processingStatus: result.status ?? "completed" } : item)));
       setAnalysis(result.analysis);
       setReply(`Critical appraisal complete for "${doc.originalName}". Review the 14-point structured evaluation below.`);
     } catch {
@@ -338,7 +439,7 @@ export default function Home() {
 
   // Open saved document analysis
   const openDocumentAnalysis = async (doc: Document) => {
-    if (doc.processingStatus !== "analyzed") {
+    if (!isAnalysisComplete(doc.processingStatus)) {
       await analyzeDocument(doc);
       return;
     }
@@ -364,6 +465,74 @@ export default function Home() {
     setTimeout(() => {
       document.getElementById("response-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 80);
+  };
+
+  // Evidence-supported research gap finder
+  const findResearchGaps = async (customQuestion?: string) => {
+    const targetQuestion = (customQuestion ?? question).trim() || activeModeInfo.defaultQuery;
+    setIsGapSearching(true);
+    setGapError("");
+    setSearchStatusText("Searching literature and comparing observable evidence gaps…");
+    try {
+      const response = await fetch("/api/research/gaps", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ question: targetQuestion }),
+      });
+      const result = (await response.json()) as {
+        gaps?: ResearchGap[];
+        opportunities?: ResearchOpportunity[];
+        error?: string;
+      };
+      if (!response.ok) {
+        setGapError(result.error ?? "The gap finder could not complete the search.");
+        return;
+      }
+      setGapResults(result.gaps ?? []);
+      setIdeaResults(result.opportunities ?? []);
+      setReply(result.opportunities?.length
+        ? `I found ${result.opportunities.length} evidence-supported research opportunity(ies). Review the supporting records and uncertainty labels before choosing a direction.`
+        : "No source-supported research opportunity was generated because no literature records were retrieved.");
+      setActiveMapTab("Ideas");
+    } catch {
+      setGapError("The research gap service is temporarily unavailable.");
+    } finally {
+      setIsGapSearching(false);
+      setSearchStatusText("");
+    }
+  };
+
+  // Safe descriptive dataset inspection
+  const analyzeDataset = async (file: File) => {
+    setIsDatasetAnalyzing(true);
+    setDatasetError("");
+    try {
+      if (file.size > 5 * 1024 * 1024) {
+        setDatasetError("JSON datasets are limited to 5 MB.");
+        return;
+      }
+      const raw = await file.text();
+      const parsed: unknown = JSON.parse(raw);
+      if (!Array.isArray(parsed) || parsed.length === 0 || parsed.some((row) => typeof row !== "object" || row === null || Array.isArray(row))) {
+        setDatasetError("Upload a non-empty JSON array of object rows.");
+        return;
+      }
+      const response = await fetch("/api/statistics", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: raw,
+      });
+      const result = (await response.json()) as { summary?: DatasetSummary; error?: string };
+      if (!response.ok || !result.summary) {
+        setDatasetError(result.error ?? "The dataset could not be inspected.");
+        return;
+      }
+      setDatasetSummary(result.summary);
+    } catch {
+      setDatasetError("The dataset must be valid JSON and contain object rows.");
+    } finally {
+      setIsDatasetAnalyzing(false);
+    }
   };
 
   // Research submit
@@ -447,7 +616,8 @@ export default function Home() {
       return;
     }
 
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const speechWindow = window as SpeechRecognitionWindow;
+    const SpeechRecognition = speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
     if (SpeechRecognition) {
       const recognition = new SpeechRecognition();
       recognition.continuous = false;
@@ -458,9 +628,9 @@ export default function Home() {
         setIsVoiceActive(true);
       };
 
-      recognition.onresult = (event: any) => {
+      recognition.onresult = (event: SpeechRecognitionEventLike) => {
         const transcript = Array.from(event.results)
-          .map((r: any) => r[0].transcript)
+          .map((result) => result[0].transcript)
           .join("");
         setQuestion(transcript);
       };
@@ -514,12 +684,14 @@ export default function Home() {
     setInterests((prev) => prev.filter((i) => i !== tag));
   };
 
+  const featuredOpportunity = ideaResults[0];
+
   return (
     <main className="aiotie-shell">
       {/* LEFT NAVIGATION SIDEBAR */}
       <aside className="aiotie-nav">
         <div className="aiotie-brand">
-          <img src="/aiotie-logo.png" alt="AIOTIE" />
+          <Image src="/aiotie-logo.png" alt="AIOTIE" width={48} height={48} priority />
           <div>
             <strong>AIOTIE <span>Research</span></strong>
             <small>Advanced Initiatives On Technology, Innovation &amp; Energy</small>
@@ -604,8 +776,7 @@ export default function Home() {
           <a
             onClick={() => {
               setMode("Statistical planning");
-              setQuestion("Develop an ICH E9 (R1) compliant statistical analysis plan for: ");
-              composerInputRef.current?.focus();
+              setShowStatisticsModal(true);
             }}
           >
             <TrendingUp />Statistics &amp; Data
@@ -643,7 +814,7 @@ export default function Home() {
         </nav>
 
         <div className="partner-card" onClick={() => setShowPartnerModal(true)} style={{ cursor: "pointer" }}>
-          <img src="/aiotie-logo.png" alt="" />
+          <Image src="/aiotie-logo.png" alt="" width={42} height={42} />
           <p>
             Your research partner<br />is always ready<br />to help.
           </p>
@@ -717,7 +888,7 @@ export default function Home() {
               onClick={() => setShowProfileModal(true)}
               title="Researcher Profile & Affiliation"
             >
-              <span>UI</span>Dr. Usman Iqbal <ChevronDown />
+              <span>UI</span>Dr. Usman Iqabl <ChevronDown />
             </button>
           </div>
         </header>
@@ -735,16 +906,16 @@ export default function Home() {
               </button>
             </div>
             <div className="popover-item">
-              <strong>New Trial Alert: NEJM 2025</strong>
-              <small>CAR-T Phase 2 in solid tumors demonstrated 24% response rate.</small>
+              <strong>Evidence alerts</strong>
+              <small>No live alerts are loaded. Run a verified literature search to create a source-backed update.</small>
             </div>
             <div className="popover-item">
-              <strong>Literature Index Synchronized</strong>
-              <small>Europe PMC and Crossref DOI verification engine active.</small>
+              <strong>Literature index</strong>
+              <small>Europe PMC retrieval and Crossref verification are available when the external services respond.</small>
             </div>
             <div className="popover-item">
-              <strong>FDA Regulatory Update</strong>
-              <small>First AI digital pathology algorithm approved for primary diagnostic triage.</small>
+              <strong>Safety boundary</strong>
+              <small>Unverified metadata is not presented as a clinical conclusion.</small>
             </div>
           </div>
         )}
@@ -1105,10 +1276,8 @@ export default function Home() {
               {/* MAP LEGEND */}
               <div className="map-legend">
                 <strong>Global Activity</strong>
-                <span><i className="hot" />8,000+ Trials</span>
-                <span><i className="high" />5,000+ Trials</span>
-                <span><i className="moderate" />2,500+ Trials</span>
-                <span><i className="low" />Regional Hub</span>
+                <span><i className="low" />Research hub marker</span>
+                <span>Live publication metrics require an indexed search</span>
               </div>
             </div>
           )}
@@ -1122,19 +1291,16 @@ export default function Home() {
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12 }}>
                 {[
-                  { name: "GLP-1 Receptor Agonists in HFpEF", growth: "+48%", trials: "2,341 papers", journal: "NEJM / Lancet", query: "GLP-1 receptor agonists heart failure with preserved ejection fraction" },
-                  { name: "CAR-T Cell Therapy in Solid Tumors", growth: "+42%", trials: "1,892 papers", journal: "Nature Medicine", query: "CAR-T cell therapy solid tumors clinical efficacy" },
-                  { name: "Multimodal Foundation Models in Radiology", growth: "+51%", trials: "3,120 papers", journal: "JAMA / Nature", query: "Multimodal foundation models in chest radiology diagnostic accuracy" },
-                  { name: "Plasma Biomarker p-tau217 for Alzheimer's", growth: "+36%", trials: "1,450 papers", journal: "JAMA Neurology", query: "Plasma phosphorylated tau-217 Alzheimer disease diagnosis" },
-                  { name: "Long COVID Neuroinflammation Pathogenesis", growth: "+29%", trials: "1,780 papers", journal: "Lancet Neurology", query: "Long COVID neuroinflammation mechanism and cognitive impairment" },
-                  { name: "CRISPR-Cas9 In Vivo Therapeutics", growth: "+34%", trials: "940 papers", journal: "Science / Cell", query: "In vivo CRISPR gene editing hereditary transthyretin amyloidosis" },
+                  { name: "GLP-1 receptor agonists in HFpEF", query: "GLP-1 receptor agonists heart failure with preserved ejection fraction" },
+                  { name: "CAR-T cell therapy in solid tumors", query: "CAR-T cell therapy solid tumors clinical efficacy" },
+                  { name: "Multimodal foundation models in radiology", query: "Multimodal foundation models in chest radiology diagnostic accuracy" },
+                  { name: "Plasma phosphorylated tau-217", query: "Plasma phosphorylated tau-217 Alzheimer disease diagnosis" },
+                  { name: "Long COVID neuroinflammation", query: "Long COVID neuroinflammation mechanism and cognitive impairment" },
+                  { name: "In vivo CRISPR therapeutics", query: "In vivo CRISPR gene editing clinical trial" },
                 ].map((item) => (
                   <div key={item.name} style={{ background: "#061a33", border: "1px solid #144075", borderRadius: 10, padding: 14 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                      <strong style={{ fontSize: 12, color: "#fff" }}>{item.name}</strong>
-                      <span style={{ color: "#49e7ab", fontWeight: "bold", fontSize: 12 }}>{item.growth}</span>
-                    </div>
-                    <p style={{ margin: "6px 0", fontSize: 11, color: "#8da9cc" }}>{item.trials} • Featured in {item.journal}</p>
+                    <strong style={{ fontSize: 12, color: "#fff" }}>{item.name}</strong>
+                    <p style={{ margin: "8px 0", fontSize: 11, color: "#8da9cc" }}>Publication volume, growth, and evidence maturity are not loaded until a live search is run.</p>
                     <button
                       className="btn-primary"
                       style={{ fontSize: 10, padding: "5px 10px", marginTop: 6 }}
@@ -1144,7 +1310,7 @@ export default function Home() {
                         void submit(item.query, "Evidence synthesis");
                       }}
                     >
-                      Synthesize Evidence
+                      Search Current Evidence
                     </button>
                   </div>
                 ))}
@@ -1155,77 +1321,70 @@ export default function Home() {
           {/* TAB 3: PERSONALIZED IDEAS VIEW */}
           {activeMapTab === "Ideas" && (
             <div style={{ background: "#041325", border: "1px solid #102a55", borderRadius: 16, padding: 20, minHeight: 440 }}>
-              <h3 style={{ margin: "0 0 14px", fontSize: 16, color: "#e8f2ff" }}>Hypotheses &amp; Grant Opportunities Tailored to Dr. Usman Iqbal</h3>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <h3 style={{ margin: "0 0 14px", fontSize: 16, color: "#e8f2ff" }}>Hypotheses &amp; Grant Opportunities Tailored to Dr. Usman Iqabl</h3>
+              <div style={{ display: "grid", gap: 14 }}>
                 <div style={{ background: "#061d3a", border: "1px solid #1c5192", borderRadius: 10, padding: 16 }}>
-                  <span style={{ fontSize: 10, color: "#38d9ff", fontWeight: "bold" }}>FEASIBILITY: 92% • HIGH IMPACT</span>
-                  <h4 style={{ margin: "8px 0", fontSize: 14, color: "#fff" }}>Multicenter Validation of AI-Assisted Radiology in Low-Resource Hospitals</h4>
-                  <p style={{ fontSize: 12, color: "#b3cbef", lineHeight: 1.45 }}>
-                    Evaluate external transportability of chest radiograph foundation models across differing scanner hardware and disease prevalence in district settings.
-                  </p>
-                  <div className="tags" style={{ margin: "10px 0" }}>
-                    <span>Global Health</span><span>Radiology AI</span><span>SPIRIT Protocol</span>
-                  </div>
-                  <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                    <button
-                      className="btn-primary"
-                      onClick={() => {
-                        setMode("Protocol builder");
-                        const q = "Multicenter prospective validation protocol of AI-assisted chest X-ray in low-resource district hospitals";
-                        setQuestion(q);
-                        void submit(q, "Protocol builder");
-                      }}
-                    >
-                      Build Protocol
-                    </button>
-                    <button
-                      className="btn-secondary"
-                      onClick={() => {
-                        setMode("Evidence synthesis");
-                        const q = "Diagnostic accuracy of AI-assisted chest radiograph in low-resource settings";
-                        setQuestion(q);
-                        void submit(q, "Evidence synthesis");
-                      }}
-                    >
-                      View Evidence
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                    <div>
+                      <strong style={{ display: "block", fontSize: 13, color: "#fff" }}>What should I research next?</strong>
+                      <small style={{ display: "block", marginTop: 5, color: "#9dbbe1", lineHeight: 1.45 }}>
+                        Search the current literature, identify only observable gaps, and show the supporting records. No unsupported priority score is generated.
+                      </small>
+                    </div>
+                    <button className="btn-primary" onClick={() => void findResearchGaps()} disabled={isGapSearching}>
+                      {isGapSearching ? "Comparing evidence…" : "Find evidence-supported gaps"}
                     </button>
                   </div>
+                  {gapError && <p style={{ color: "#ff8a9e", fontSize: 11, margin: "10px 0 0" }}>{gapError}</p>}
                 </div>
 
-                <div style={{ background: "#061d3a", border: "1px solid #1c5192", borderRadius: 10, padding: 16 }}>
-                  <span style={{ fontSize: 10, color: "#ff54d4", fontWeight: "bold" }}>FEASIBILITY: 88% • TRANSLATIONAL</span>
-                  <h4 style={{ margin: "8px 0", fontSize: 14, color: "#fff" }}>Can Multi-Omics Predict Immunotherapy Non-Response in Solid Tumors?</h4>
-                  <p style={{ fontSize: 12, color: "#b3cbef", lineHeight: 1.45 }}>
-                    Integrate spatial transcriptomics, circulating tumor DNA (ctDNA) kinetics, and microbiome profiles to pre-identify hyperprogressive disease.
-                  </p>
-                  <div className="tags" style={{ margin: "10px 0" }}>
-                    <span>Oncology</span><span>Biomarkers</span><span>Multi-omics</span>
+                {ideaResults.length === 0 && !gapError && (
+                  <div style={{ background: "#061a33", border: "1px dashed #24548d", borderRadius: 10, padding: 18, color: "#a7c0df", fontSize: 12 }}>
+                    No gap analysis has been run in this session. The result will remain empty when the literature index is unavailable.
                   </div>
-                  <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                    <button
-                      className="btn-primary"
-                      onClick={() => {
-                        setMode("Statistical planning");
-                        const q = "Statistical analysis plan for multi-omics biomarker predictive modeling in immunotherapy non-response";
-                        setQuestion(q);
-                        void submit(q, "Statistical planning");
-                      }}
-                    >
-                      Statistical Plan
-                    </button>
-                    <button
-                      className="btn-secondary"
-                      onClick={() => {
+                )}
+
+                {ideaResults.map((opportunity) => (
+                  <div key={opportunity.id} style={{ background: "#061d3a", border: "1px solid #1c5192", borderRadius: 10, padding: 16 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+                      <div>
+                        <span style={{ fontSize: 10, color: "#38d9ff", fontWeight: "bold" }}>{opportunity.evidenceConfidence}</span>
+                        <h4 style={{ margin: "8px 0", fontSize: 14, color: "#fff" }}>{opportunity.title}</h4>
+                      </div>
+                      <span className="badge-unverified">Opportunity</span>
+                    </div>
+                    <p style={{ fontSize: 12, color: "#b3cbef", lineHeight: 1.45 }}><strong>Research question:</strong> {opportunity.researchQuestion}</p>
+                    <p style={{ fontSize: 12, color: "#b3cbef", lineHeight: 1.45 }}><strong>Observed gap:</strong> {opportunity.researchGap}</p>
+                    <p style={{ fontSize: 11, color: "#8da9cc", lineHeight: 1.45 }}>{opportunity.whyThisQuestionExists}</p>
+                    <p style={{ fontSize: 10, color: "#ffcf76", lineHeight: 1.4 }}><strong>Uncertainty:</strong> {opportunity.uncertainty}</p>
+                    <div style={{ margin: "10px 0", display: "grid", gap: 5 }}>
+                      <strong style={{ fontSize: 10, color: "#e7f1ff" }}>Supporting records</strong>
+                      {opportunity.relevantPapers.slice(0, 3).map((paper) => (
+                        <a key={paper.id} href={paper.url} target="_blank" rel="noreferrer" style={{ color: "#71b4ff", fontSize: 10 }}>
+                          {paper.title} · {paper.verificationStatus === "verified" ? "DOI verified" : "Not DOI verified"}
+                        </a>
+                      ))}
+                    </div>
+                    <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+                      <button className="btn-primary" onClick={() => {
                         setMode("Evidence synthesis");
-                        const q = "Multi-omics biomarker profiling for predicting immunotherapy response";
-                        setQuestion(q);
-                        void submit(q, "Evidence synthesis");
-                      }}
-                    >
-                      View Evidence
-                    </button>
+                        setQuestion(opportunity.researchQuestion);
+                        void submit(opportunity.researchQuestion, "Evidence synthesis");
+                      }}>Explore Evidence</button>
+                      <button className="btn-secondary" onClick={() => {
+                        setMode("Protocol builder");
+                        setQuestion(opportunity.researchQuestion);
+                        void submit(opportunity.researchQuestion, "Protocol builder");
+                      }}>Build Protocol</button>
+                    </div>
                   </div>
-                </div>
+                ))}
+
+                {gapResults.length > 0 && (
+                  <small style={{ color: "#7898c1", lineHeight: 1.45 }}>
+                    Gap detection is limited to {gapResults[0].evidenceCount} retrieved record(s), not a complete systematic review.
+                  </small>
+                )}
               </div>
             </div>
           )}
@@ -1240,10 +1399,10 @@ export default function Home() {
               <button onClick={() => setShowLibraryModal(true)}>View All</button>
             </header>
             {[
-              { text: "New RCT shows promising results for CAR-T therapy in solid tumors", journal: "Nature Medicine · 2 hours ago", query: "CAR-T cell therapy in solid tumors randomized trial efficacy" },
-              { text: "Meta-analysis confirms GLP-1 reduces cardiovascular risk in type 2 diabetes", journal: "JAMA · 4 hours ago", query: "GLP-1 receptor agonists cardiovascular risk type 2 diabetes meta-analysis" },
-              { text: "New biomarker identified for early Alzheimer’s detection", journal: "Lancet Neurology · 6 hours ago", query: "Plasma phosphorylated tau-217 biomarker early Alzheimer detection" },
-              { text: "FDA approves first AI tool for automated pathology analysis", journal: "NEJM · 8 hours ago", query: "FDA approved AI diagnostic pathology automated analysis validation" },
+              { text: "Search current evidence for CAR-T therapy in solid tumors", journal: "Live index search required", query: "CAR-T cell therapy in solid tumors randomized trial efficacy" },
+              { text: "Search cardiovascular outcomes for GLP-1 receptor agonists", journal: "Live index search required", query: "GLP-1 receptor agonists cardiovascular risk type 2 diabetes meta-analysis" },
+              { text: "Search diagnostic evidence for plasma p-tau217", journal: "Live index search required", query: "Plasma phosphorylated tau-217 biomarker early Alzheimer detection" },
+              { text: "Search validation evidence for AI pathology tools", journal: "Live index search required", query: "AI diagnostic pathology automated analysis validation" },
             ].map((item, index) => (
               <button
                 className="insight-row"
@@ -1260,7 +1419,7 @@ export default function Home() {
                   <strong>{item.text}</strong>
                   <small>{item.journal}</small>
                 </span>
-                <em>Verified</em>
+                <em>Run verified search</em>
                 <ChevronRight />
               </button>
             ))}
@@ -1276,27 +1435,27 @@ export default function Home() {
                 </button>
               </header>
               {[
-                { name: "AI in Radiology", growth: "34%", query: "AI in radiology diagnostic performance" },
-                { name: "GLP-1 Agonist", growth: "30%", query: "GLP-1 receptor agonist clinical outcomes" },
-                { name: "Long COVID", growth: "26%", query: "Long COVID biomarkers and therapeutic trials" },
-                { name: "mRNA Vaccines", growth: "22%", query: "mRNA vaccine platforms oncology and infectious disease" },
-                { name: "Precision Oncology", growth: "18%", query: "Precision oncology targeted therapy NGS sequencing" },
-              ].map((topic, index) => (
+                ["AI in radiology", "AI in radiology diagnostic performance"],
+                ["GLP-1 receptor agonists", "GLP-1 receptor agonist clinical outcomes"],
+                ["Long COVID", "Long COVID biomarkers and therapeutic trials"],
+                ["mRNA vaccines", "mRNA vaccine platforms oncology and infectious disease"],
+                ["Precision oncology", "Precision oncology targeted therapy NGS sequencing"],
+              ].map(([topic, query], index) => (
                 <div
                   className="trend-row"
-                  key={topic.name}
+                  key={topic}
                   style={{ cursor: "pointer" }}
                   onClick={() => {
                     setMode("Evidence synthesis");
-                    setQuestion(topic.query);
-                    void submit(topic.query, "Evidence synthesis");
+                    setQuestion(query);
+                    void submit(query, "Evidence synthesis");
                   }}
                   title="Explore topic evidence"
                 >
                   <b>{index + 1}</b>
-                  <strong>{topic.name}</strong>
+                  <strong>{topic}</strong>
                   <span className="spark" />
-                  <em>↑ {topic.growth}</em>
+                  <em>Insufficient data</em>
                 </div>
               ))}
             </article>
@@ -1308,32 +1467,22 @@ export default function Home() {
               <h2><Lightbulb />Your Personalized Ideas</h2>
               <button onClick={() => setActiveMapTab("Ideas")}>View All</button>
             </header>
-            <p className="idea-kicker">Building on your interests (Oncology &amp; AI)</p>
-            <h3>Can AI predict chemotherapy response using multi-omics data?</h3>
+            <p className="idea-kicker">Ideas are generated only after a live, source-backed gap search.</p>
+            <h3>{ideaResults[0]?.title ?? "No evidence-supported idea has been generated yet."}</h3>
             <div className="tags">
-              <span>Oncology</span>
-              <span>AI/ML</span>
-              <span>Biomarkers</span>
+              {interests.slice(0, 3).map((interest) => <span key={interest}>{interest}</span>)}
             </div>
             <hr />
             <p className="why">
-              Why now?<br />
               <small>
-                • Growing interest in multi-omics (↑ 42%)<br />
-                • Limited validation in real-world settings<br />
-                • Potential for personalized treatment
+                {ideaResults[0]?.researchGap ?? "Open Ideas and run Find evidence-supported gaps to compare retrieved literature."}
               </small>
             </p>
-            <button
-              className="explore"
-              onClick={() => {
-                setMode("Protocol builder");
-                const q = "Can AI predict chemotherapy response using multi-omics data? Design a prospective study protocol.";
-                setQuestion(q);
-                void submit(q, "Protocol builder");
-              }}
-            >
-              Explore Idea &amp; Build Protocol
+            <button className="explore" onClick={() => {
+              setActiveMapTab("Ideas");
+              void findResearchGaps();
+            }}>
+              Find Evidence-Supported Ideas
             </button>
           </article>
         </section>
@@ -1384,6 +1533,17 @@ export default function Home() {
             onChange={(event) => {
               const file = event.target.files?.[0];
               if (file) void uploadDocument(file);
+              event.target.value = "";
+            }}
+          />
+          <input
+            ref={datasetFileInput}
+            type="file"
+            accept="application/json,.json"
+            hidden
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) void analyzeDataset(file);
               event.target.value = "";
             }}
           />
@@ -1438,6 +1598,7 @@ export default function Home() {
                 <BrainCircuit size={13} />
                 {routingAgent}
               </span>
+              {searchStatusText && <small className="response-status" aria-live="polite">{searchStatusText}</small>}
               <div className="response-actions">
                 <button className="action-icon-btn" onClick={copyReply} title="Copy output">
                   {copied ? <Check size={12} color="#49e7ab" /> : <Copy size={12} />}
@@ -1530,10 +1691,12 @@ export default function Home() {
                       <span>{source.journal || "PubMed"}</span>
                       {source.year && <span>({source.year})</span>}
                       {source.doi && <span>DOI: {source.doi}</span>}
+                      {source.pmid && <span>PMID: {source.pmid}</span>}
+                      {source.fullTextUrl && <a href={source.fullTextUrl} target="_blank" rel="noreferrer">Open full text</a>}
                       <button
                         style={{ marginLeft: "auto", background: "transparent", border: 0, color: "#5ea5ff", fontSize: 9 }}
                         onClick={() => {
-                          const citation = `${source.authors ?? "Authors"}. (${source.year ?? "n.d."}). ${source.title}. ${source.journal ?? ""}. https://doi.org/${source.doi ?? ""}`;
+                          const citation = `${source.authors ?? "Authors not reported"}. (${source.year ?? "Year not reported"}). ${source.title}. ${source.journal ?? "Journal not reported"}. ${source.doi ? `https://doi.org/${source.doi}` : source.url}`;
                           navigator.clipboard.writeText(citation);
                           setCopied(true);
                           setTimeout(() => setCopied(false), 2000);
@@ -1557,48 +1720,36 @@ export default function Home() {
           <header>
             <Lightbulb />
             <strong>New Research Opportunity</strong>
-            <em>High Confidence</em>
+            <em>{featuredOpportunity ? "Evidence-supported" : "Needs live search"}</em>
           </header>
-          <h2>AI-assisted radiology in low-resource settings</h2>
+          <h2>{featuredOpportunity?.title ?? "No live research opportunity loaded"}</h2>
           <p>
-            Recent studies show strong performance of AI models in radiology, but external validation in low-resource hospitals is limited.
+            {featuredOpportunity?.researchGap ?? "Run the evidence-supported gap finder to compare current records before proposing a research idea."}
           </p>
-          <dl>
-            <div>
-              <dt>Evidence: 18 relevant studies</dt>
-            </div>
-            <div>
-              <dt>Potential research question:</dt>
-              <dd>
-                Can an AI-assisted chest X-ray model maintain diagnostic performance across hospitals with different patient populations and imaging equipment?
-              </dd>
-            </div>
-            <div>
-              <dt>Suggested design:</dt>
-              <dd>Prospective multicenter validation</dd>
-            </div>
-          </dl>
+          {featuredOpportunity && (
+            <dl>
+              <div>
+                <dt>Evidence confidence</dt>
+                <dd>{featuredOpportunity.evidenceConfidence}</dd>
+              </div>
+              <div>
+                <dt>Potential research question</dt>
+                <dd>{featuredOpportunity.researchQuestion}</dd>
+              </div>
+              <div>
+                <dt>Uncertainty</dt>
+                <dd>{featuredOpportunity.uncertainty}</dd>
+              </div>
+            </dl>
+          )}
           <footer>
-            <button
-              onClick={() => {
-                setMode("Evidence synthesis");
-                const q = "Diagnostic accuracy of AI-assisted chest X-ray in low-resource hospitals: external validation evidence";
-                setQuestion(q);
-                void submit(q, "Evidence synthesis");
-              }}
-            >
-              Explore Evidence
+            <button onClick={() => {
+              setActiveMapTab("Ideas");
+              void findResearchGaps();
+            }} disabled={isGapSearching}>
+              {isGapSearching ? "Searching…" : "Find Evidence"}
             </button>
-            <button
-              onClick={() => {
-                setMode("Protocol builder");
-                const q = "Prospective multicenter validation of an AI-assisted chest X-ray model in district hospitals: trial protocol";
-                setQuestion(q);
-                void submit(q, "Protocol builder");
-              }}
-            >
-              Build Protocol
-            </button>
+            <button onClick={() => setActiveMapTab("Ideas")}>Open Ideas</button>
           </footer>
         </article>
 
@@ -1609,13 +1760,13 @@ export default function Home() {
             <button onClick={() => setActiveMapTab("Trends")}>View All</button>
           </header>
           {[
-            ["Emerging", "GLP-1 receptor agonists (2,341 papers)", "GLP-1 receptor agonists clinical outcomes"],
-            ["Growing", "Long COVID (1,892 papers)", "Long COVID pathophysiology and biomarkers"],
-            ["Growing", "AI in medical imaging (1,284 papers)", "AI foundation models in medical imaging"],
-            ["Declining", "Vitamin D for COVID-19 (412 papers)", "Vitamin D clinical trials respiratory infections"],
-          ].map(([state, item, query]) => (
+            ["GLP-1 receptor agonists", "GLP-1 receptor agonist clinical outcomes"],
+            ["Long COVID", "Long COVID pathophysiology and biomarkers"],
+            ["AI in medical imaging", "AI foundation models in medical imaging"],
+            ["Vitamin D and respiratory infection", "Vitamin D clinical trials respiratory infections"],
+          ].map(([topic, query]) => (
             <div
-              key={item}
+              key={topic}
               style={{ cursor: "pointer" }}
               onClick={() => {
                 setMode("Evidence synthesis");
@@ -1624,11 +1775,9 @@ export default function Home() {
               }}
               title="Search evidence"
             >
-              <span className={state === "Declining" ? "down" : "up"}>
-                {state === "Declining" ? "↓" : "↑"}
-              </span>
-              <em className={state.toLowerCase()}>{state}</em>
-              <p>{item}</p>
+              <span className="up">•</span>
+              <em>Search</em>
+              <p>{topic}<small>Live volume and growth: insufficient data</small></p>
             </div>
           ))}
         </article>
@@ -1692,8 +1841,8 @@ export default function Home() {
                 >
                   <FileText size={12} style={{ verticalAlign: "middle", marginRight: 5 }} />
                   {document.originalName}
-                  <small style={{ display: "block", color: document.processingStatus === "analyzed" ? "#5adbb4" : "#ffba5a" }}>
-                    {document.processingStatus === "analyzed" ? "Analyzed • View Appraisal" : "Queued • Run Appraisal"}
+                  <small style={{ display: "block", color: isAnalysisComplete(document.processingStatus) ? "#5adbb4" : "#ffba5a" }}>
+                    {isAnalysisComplete(document.processingStatus) ? "Analyzed • View Appraisal" : `${document.processingStatus} • Run Appraisal`}
                   </small>
                 </button>
                 <button
@@ -1744,7 +1893,7 @@ export default function Home() {
           </div>
           <p>
             <strong>Voice Assistant</strong>
-            <small>{isVoiceActive ? "Listening to Dr. Iqbal..." : "Click to talk to AIOTIE"}</small>
+            <small>{isVoiceActive ? "Listening to Dr. Iqabl..." : "Click to talk to AIOTIE"}</small>
           </p>
         </article>
       </aside>
@@ -1761,7 +1910,7 @@ export default function Home() {
             </div>
             <div className="modal-content">
               <div style={{ background: "#072042", padding: 12, borderRadius: 8, marginBottom: 16 }}>
-                <h4 style={{ margin: "0 0 8px", fontSize: 13, color: "#e8f2ff" }}>Create New Research Project</h4>
+                <h4 style={{ margin: "0 0 8px", fontSize: 13, color: "#e8f2ff" }}>{editingProjectId ? "Edit Research Project" : "Create New Research Project"}</h4>
                 <div className="form-group">
                   <label>Project Title *</label>
                   <input
@@ -1781,9 +1930,17 @@ export default function Home() {
                   />
                 </div>
                 {projectError && <p style={{ color: "#ff6a88", fontSize: 11, margin: "4px 0" }}>{projectError}</p>}
-                <button className="btn-primary" onClick={createProject}>
-                  <Plus size={13} /> Save Project
-                </button>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button className="btn-primary" onClick={createProject}>
+                    <Plus size={13} /> {editingProjectId ? "Update Project" : "Save Project"}
+                  </button>
+                  {editingProjectId && <button className="btn-secondary" onClick={() => {
+                    setEditingProjectId(null);
+                    setNewProjectName("");
+                    setNewProjectQuestion("");
+                    setProjectError("");
+                  }}>Cancel Edit</button>}
+                </div>
               </div>
 
               <h4 style={{ margin: "14px 0 8px", fontSize: 13, color: "#c5daf8" }}>Your Research Projects ({projects.length})</h4>
@@ -1821,13 +1978,27 @@ export default function Home() {
                           )}
                         </td>
                         <td>
-                          <button
-                            className="btn-danger"
-                            onClick={() => void deleteProject(p.id)}
-                            title="Delete project"
-                          >
-                            <Trash2 size={12} />
-                          </button>
+                          <div style={{ display: "flex", gap: 5 }}>
+                            <button
+                              className="btn-secondary"
+                              onClick={() => {
+                                setEditingProjectId(p.id);
+                                setNewProjectName(p.name);
+                                setNewProjectQuestion(p.question ?? "");
+                                setProjectError("");
+                              }}
+                              title="Edit project"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="btn-danger"
+                              onClick={() => void deleteProject(p.id)}
+                              title="Delete project"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1853,7 +2024,7 @@ export default function Home() {
             <div className="modal-content">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                 <p style={{ margin: 0, color: "#adc4e4" }}>
-                  Persistent repository of all retrieved peer-reviewed records and search runs authenticated to Dr. Usman Iqbal.
+                  Persistent repository of all retrieved peer-reviewed records and search runs authenticated to Dr. Usman Iqabl.
                 </p>
                 <button
                   className="btn-primary"
@@ -1966,7 +2137,7 @@ export default function Home() {
                         <td><strong>{doc.originalName}</strong></td>
                         <td>{(doc.byteSize / (1024 * 1024)).toFixed(2)} MB</td>
                         <td>
-                          <span className={doc.processingStatus === "analyzed" ? "badge-verified" : "badge-unverified"}>
+                          <span className={isAnalysisComplete(doc.processingStatus) ? "badge-verified" : "badge-unverified"}>
                             {doc.processingStatus}
                           </span>
                         </td>
@@ -1979,7 +2150,7 @@ export default function Home() {
                               void openDocumentAnalysis(doc);
                             }}
                           >
-                            {doc.processingStatus === "analyzed" ? "View 14-Point Appraisal" : "Run Critical Appraisal"}
+                            {isAnalysisComplete(doc.processingStatus) ? "View 14-Point Appraisal" : "Run Critical Appraisal"}
                           </button>
                         </td>
                         <td>
@@ -2057,7 +2228,64 @@ export default function Home() {
         </div>
       )}
 
-      {/* 5. MANUSCRIPT & REPORTING CHECKLIST MODAL */}
+      {/* 5. SAFE DATASET INSPECTION MODAL */}
+      {showStatisticsModal && (
+        <div className="modal-overlay" onClick={() => setShowStatisticsModal(false)}>
+          <div className="modal-window wide" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-header">
+              <h2><TrendingUp size={18} /> Statistics &amp; Data</h2>
+              <button className="modal-close" onClick={() => setShowStatisticsModal(false)}><X size={16} /></button>
+            </div>
+            <div className="modal-content">
+              <p style={{ color: "#b9d2f2" }}>
+                Upload a JSON array of object rows for bounded descriptive inspection. No external model is used and no result is generated without your data.
+              </p>
+              <button className="btn-primary" onClick={() => datasetFileInput.current?.click()} disabled={isDatasetAnalyzing}>
+                {isDatasetAnalyzing ? "Inspecting dataset…" : "Upload JSON dataset"}
+              </button>
+              {datasetError && <p style={{ color: "#ff8a9e", fontSize: 11 }}>{datasetError}</p>}
+              {datasetSummary && (
+                <div style={{ marginTop: 16 }}>
+                  <strong style={{ color: "#49e7ab" }}>{datasetSummary.rowCount} rows inspected</strong>
+                  <table className="data-table" style={{ marginTop: 10 }}>
+                    <thead><tr><th>Variable</th><th>Type</th><th>Observed</th><th>Missing</th><th>Unique</th></tr></thead>
+                    <tbody>
+                      {datasetSummary.variables.map((variable) => (
+                        <tr key={variable.name}>
+                          <td>{variable.name}</td><td>{variable.type}</td><td>{variable.observed}</td><td>{variable.missing}</td><td>{variable.uniqueValues}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {datasetSummary.numeric.length > 0 && (
+                    <>
+                      <h4 style={{ color: "#e8f2ff", margin: "16px 0 8px" }}>Numeric summaries</h4>
+                      <table className="data-table">
+                        <thead><tr><th>Column</th><th>N</th><th>Mean</th><th>Median</th><th>SD</th><th>Range</th></tr></thead>
+                        <tbody>
+                          {datasetSummary.numeric.map((summary) => (
+                            <tr key={summary.column}>
+                              <td>{summary.column}</td><td>{summary.n}</td><td>{summary.mean ?? "Not available"}</td><td>{summary.median ?? "Not available"}</td><td>{summary.standardDeviation ?? "Not available"}</td><td>{summary.minimum ?? "—"} to {summary.maximum ?? "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </>
+                  )}
+                  <ul style={{ color: "#9dbbe1", fontSize: 11, lineHeight: 1.5, paddingLeft: 18 }}>
+                    {datasetSummary.limitations.map((limitation) => <li key={limitation}>{limitation}</li>)}
+                  </ul>
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={() => setShowStatisticsModal(false)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 6. MANUSCRIPT & REPORTING CHECKLIST MODAL */}
       {showManuscriptModal && (
         <div className="modal-overlay" onClick={() => setShowManuscriptModal(false)}>
           <div className="modal-window" onClick={(e) => e.stopPropagation()}>
@@ -2154,7 +2382,7 @@ export default function Home() {
                   UI
                 </span>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: 16, color: "white" }}>Dr. Usman Iqbal, MD, PhD, FACHI</h3>
+                  <h3 style={{ margin: 0, fontSize: 16, color: "white" }}>Dr. Usman Iqabl, MD, PhD, FACHI</h3>
                   <small style={{ color: "#8ca8cb" }}>Senior Investigator &amp; Director, Biomedical Informatics</small>
                   <em style={{ display: "block", color: "#49e7ab", fontStyle: "normal", fontSize: 10, marginTop: 2 }}>AIOTIE Global Health Research Institute</em>
                 </div>
@@ -2190,7 +2418,7 @@ export default function Home() {
                   <div key={idx} style={{ background: m.role === "user" ? "#072044" : "#04162e", padding: 10, borderRadius: 7, marginBottom: 8, border: "1px solid #163f73" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
                       <strong style={{ fontSize: 11, color: m.role === "user" ? "#38d9ff" : "#49e7ab" }}>
-                        {m.role === "user" ? "Dr. Usman Iqbal" : `AIOTIE (${m.agent ?? "Assistant"})`}
+                        {m.role === "user" ? "Dr. Usman Iqabl" : `AIOTIE (${m.agent ?? "Assistant"})`}
                       </strong>
                       <small style={{ color: "#7497c2", fontSize: 9 }}>{m.time}</small>
                     </div>
