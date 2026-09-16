@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Aurelia Research | Evidence-first healthcare research",
-  description: "A secure, evidence-first workspace for healthcare research.",
+  title: "AIOTIE Research | Research Intelligence",
+  description: "AIOTIE Research is an evidence-first healthcare research intelligence workspace.",
   other: {
     "codex-preview": "development",
   },
