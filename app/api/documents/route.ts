@@ -3,6 +3,7 @@ import { getChatGPTUser } from "../../chatgpt-auth";
 import { getDb, getDocumentBucket } from "../../../db";
 import { uploadedDocuments } from "../../../db/schema";
 import { desc, eq } from "drizzle-orm";
+import { writeAuditEvent } from "../../../lib/audit";
 
 const MAX_PDF_BYTES = 25 * 1024 * 1024;
 function safeFilename(name: string): string { return name.replace(/[\\/:*?"<>|\u0000-\u001f]/g, "_").slice(0, 180) || "document.pdf"; }
@@ -42,6 +43,7 @@ export async function POST(request: Request) {
   try {
     await getDocumentBucket().put(storageKey, await file.arrayBuffer(), { httpMetadata: { contentType: "application/pdf" } });
     await getDb().insert(uploadedDocuments).values(document);
+    try { await writeAuditEvent(user.userId, "uploaded", "document", document.id); } catch { /* preserve successful upload */ }
     return NextResponse.json({ document: { id: document.id, originalName: document.originalName, byteSize: document.byteSize, status: document.processingStatus } }, { status: 201 });
   } catch {
     try { await getDocumentBucket().delete(storageKey); } catch { /* best-effort cleanup */ }

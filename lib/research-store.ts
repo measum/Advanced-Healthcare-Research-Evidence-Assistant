@@ -1,5 +1,5 @@
 import { getDb } from "../db";
-import { retrievedSources, searchRuns } from "../db/schema";
+import { auditEvents, retrievedSources, searchRuns } from "../db/schema";
 import type { VerifiedLiteratureRecord } from "./crossref";
 
 export async function recordSearch(
@@ -13,6 +13,9 @@ export async function recordSearch(
   await db.batch([
     db.insert(searchRuns).values({
       id: searchRunId, ownerId, query, provider: "Europe PMC", createdAt: now,
+    }),
+    db.insert(auditEvents).values({
+      id: crypto.randomUUID(), ownerId, action: "retrieved", entityType: "search_run", entityId: searchRunId, createdAt: now,
     }),
     ...sources.map((source) => db.insert(retrievedSources).values({
       id: crypto.randomUUID(), searchRunId, externalId: source.id, title: source.title,

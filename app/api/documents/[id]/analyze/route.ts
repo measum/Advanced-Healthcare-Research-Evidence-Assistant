@@ -4,6 +4,7 @@ import { getChatGPTUser } from "../../../../chatgpt-auth";
 import { getDb, getDocumentBucket } from "../../../../../db";
 import { paperAnalyses, uploadedDocuments } from "../../../../../db/schema";
 import { analyzePdfDocument } from "../../../../../lib/research-provider";
+import { writeAuditEvent } from "../../../../../lib/audit";
 
 export async function POST(_: Request, context: { params: Promise<{ id: string }> }) {
   const user = await getChatGPTUser();
@@ -23,6 +24,7 @@ export async function POST(_: Request, context: { params: Promise<{ id: string }
         .onConflictDoUpdate({ target: paperAnalyses.documentId, set: { content: analysis, model: "configured-provider", updatedAt: now } }),
       getDb().update(uploadedDocuments).set({ processingStatus: "analyzed" }).where(eq(uploadedDocuments.id, id)),
     ]);
+    try { await writeAuditEvent(user.userId, "analyzed", "document", id); } catch { /* preserve successful analysis */ }
     return NextResponse.json({ documentId: id, analysis, sourceWarning: "This analysis is derived from the uploaded document. Verify all claims against the original paper." });
   } catch {
     return NextResponse.json({ error: "Document analysis is unavailable. No analysis was saved." }, { status: 503 });

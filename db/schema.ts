@@ -57,3 +57,12 @@ export const paperAnalyses = sqliteTable("paper_analyses", {
   uniqueIndex("idx_paper_analyses_document").on(table.documentId),
   index("idx_paper_analyses_owner_updated").on(table.ownerId, table.updatedAt),
 ]);
+
+export const auditEvents = sqliteTable("audit_events", {
+  id: text("id").primaryKey(),
+  ownerId: text("owner_id").notNull(),
+  action: text("action").notNull(),
+  entityType: text("entity_type").notNull(),
+  entityId: text("entity_id").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+}, (table) => [index("idx_audit_events_owner_created").on(table.ownerId, table.createdAt)]);
