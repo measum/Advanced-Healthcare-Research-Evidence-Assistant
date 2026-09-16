@@ -6,6 +6,10 @@ import { desc, eq } from "drizzle-orm";
 
 const MAX_PDF_BYTES = 25 * 1024 * 1024;
 function safeFilename(name: string): string { return name.replace(/[\\/:*?"<>|\u0000-\u001f]/g, "_").slice(0, 180) || "document.pdf"; }
+async function hasPdfSignature(file: File): Promise<boolean> {
+  const header = new TextDecoder().decode(await file.slice(0, 5).arrayBuffer());
+  return header === "%PDF-";
+}
 
 export async function GET() {
   const user = await getChatGPTUser();
@@ -31,6 +35,7 @@ export async function POST(request: Request) {
   if (!(file instanceof File)) return NextResponse.json({ error: "Choose a PDF file to upload." }, { status: 400 });
   if (file.type !== "application/pdf" || !file.name.toLowerCase().endsWith(".pdf")) return NextResponse.json({ error: "Only PDF documents are accepted." }, { status: 415 });
   if (file.size === 0 || file.size > MAX_PDF_BYTES) return NextResponse.json({ error: "PDF files must be between 1 byte and 25 MB." }, { status: 413 });
+  if (!(await hasPdfSignature(file))) return NextResponse.json({ error: "The uploaded file does not have a valid PDF signature." }, { status: 415 });
   const id = crypto.randomUUID();
   const storageKey = "documents/" + user.userId + "/" + id + ".pdf";
   const document = { id, ownerId: user.userId, projectId: null, storageKey, originalName: safeFilename(file.name), contentType: "application/pdf", byteSize: file.size, processingStatus: "queued", createdAt: new Date() };
