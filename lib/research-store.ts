@@ -1,4 +1,4 @@
-import { getDb } from "../db";
+import { getDb, ensureDbInitialized } from "../db";
 import { auditEvents, retrievedSources, searchRuns } from "../db/schema";
 import type { VerifiedLiteratureRecord } from "./crossref";
 
@@ -7,6 +7,7 @@ export async function recordSearch(
   query: string,
   sources: VerifiedLiteratureRecord[],
 ): Promise<void> {
+  await ensureDbInitialized();
   const db = getDb();
   const searchRunId = crypto.randomUUID();
   const now = new Date();
