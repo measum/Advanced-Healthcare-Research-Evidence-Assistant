@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { desc, eq } from "drizzle-orm";
 import { getChatGPTUser } from "../../chatgpt-auth";
-import { getDb } from "../../../db";
+import { getDb, ensureDbInitialized } from "../../../db";
 import { retrievedSources, searchRuns } from "../../../db/schema";
 
 export async function GET() {
   const user = await getChatGPTUser();
   if (!user) return NextResponse.json({ error: "Sign in to view saved evidence." }, { status: 401 });
   try {
+    await ensureDbInitialized();
     const rows = await getDb().select({
       sourceId: retrievedSources.id,
       title: retrievedSources.title,
