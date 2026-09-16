@@ -44,3 +44,25 @@ This is a healthcare research copilot. It supports research, evidence synthesis,
 ## Required external services
 
 An AI model provider and literature metadata/full-text providers are external dependencies. Optional integrations include reference managers, calendar/tasks, and institutional access. The UI and non-sensitive local interaction can run without them; source-grounded answers cannot.
+
+## Current evidence pipeline
+
+`question → route → Europe PMC retrieval → deduplication/ranking → Crossref verification → bounded Open Access full-text retrieval → source packet → grounded synthesis`
+
+The deterministic path has no fabricated citation fallback. Provider failure produces an explicit no-evidence or metadata-only response. Source packets preserve persistent identifiers, abstract/full-text availability, verification status, verification reason, and retrieval timestamps. Full text is bounded and kept server-side for synthesis; it is not returned wholesale to the browser.
+
+## Research-gap pipeline
+
+`question → verified retrieval set → observable gap signals → supporting source records → uncertainty-labeled opportunity`
+
+Gap detection is intentionally retrieval-set scoped. It does not claim field-wide novelty or replace a systematic review.
+
+## Document processing states
+
+Uploaded PDFs move through `uploaded`, `processing`, `extracted`, `ocr_required`, `completed`, `failed`, or `rejected`. Active PDF content markers are rejected before storage. Extracted document content is untrusted and cannot override model/system instructions. OCR and isolated worker execution remain deployment milestones.
+
+## Data analysis boundary
+
+`JSON rows → bounded local inspection → variable/missingness summary → transparent numeric descriptives`
+
+The current statistics endpoint performs descriptive calculations only, using user-provided values. It does not fabricate inferential results or claim causality; advanced analyses require a prespecified estimand and additional implementation.

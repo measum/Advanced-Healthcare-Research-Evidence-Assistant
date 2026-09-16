@@ -30,12 +30,20 @@ const D1_SCHEMA_STATEMENTS = [
     search_run_id text NOT NULL,
     external_id text NOT NULL,
     title text NOT NULL,
+    authors text,
     journal text,
     publication_year text,
+    publication_type text,
+    abstract text,
     doi text,
     pmid text,
+    pmcid text,
     canonical_url text NOT NULL,
+    full_text_url text,
+    full_text_available integer NOT NULL DEFAULT 0,
     verification_status text DEFAULT 'unverified' NOT NULL,
+    verification_reason text,
+    retrieved_at integer NOT NULL,
     FOREIGN KEY (search_run_id) REFERENCES search_runs(id) ON UPDATE no action ON DELETE cascade
   )`,
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_retrieved_sources_run_external ON retrieved_sources (search_run_id, external_id)`,
@@ -48,6 +56,9 @@ const D1_SCHEMA_STATEMENTS = [
     content_type text NOT NULL,
     byte_size integer NOT NULL,
     processing_status text NOT NULL,
+    extraction_error text,
+    page_count integer,
+    extracted_at integer,
     created_at integer NOT NULL,
     FOREIGN KEY (project_id) REFERENCES research_projects(id) ON UPDATE no action ON DELETE set null
   )`,
@@ -72,7 +83,24 @@ const D1_SCHEMA_STATEMENTS = [
     entity_id text NOT NULL,
     created_at integer NOT NULL
   )`,
-  `CREATE INDEX IF NOT EXISTS idx_audit_events_owner_created ON audit_events (owner_id, created_at)`
+  `CREATE INDEX IF NOT EXISTS idx_audit_events_owner_created ON audit_events (owner_id, created_at)`,
+];
+
+// Existing previews may already have the original, smaller tables. These
+// additive statements keep local development compatible while the generated
+// migration is applied in deployed environments.
+const D1_COMPATIBILITY_STATEMENTS = [
+  "ALTER TABLE retrieved_sources ADD COLUMN authors text",
+  "ALTER TABLE retrieved_sources ADD COLUMN publication_type text",
+  "ALTER TABLE retrieved_sources ADD COLUMN abstract text",
+  "ALTER TABLE retrieved_sources ADD COLUMN pmcid text",
+  "ALTER TABLE retrieved_sources ADD COLUMN full_text_url text",
+  "ALTER TABLE retrieved_sources ADD COLUMN full_text_available integer NOT NULL DEFAULT 0",
+  "ALTER TABLE retrieved_sources ADD COLUMN verification_reason text",
+  "ALTER TABLE retrieved_sources ADD COLUMN retrieved_at integer",
+  "ALTER TABLE uploaded_documents ADD COLUMN extraction_error text",
+  "ALTER TABLE uploaded_documents ADD COLUMN page_count integer",
+  "ALTER TABLE uploaded_documents ADD COLUMN extracted_at integer",
 ];
 
 export async function ensureDbInitialized() {
@@ -84,6 +112,13 @@ export async function ensureDbInitialized() {
       try {
         for (const sql of D1_SCHEMA_STATEMENTS) {
           await d1.prepare(sql).run();
+        }
+        for (const sql of D1_COMPATIBILITY_STATEMENTS) {
+          try {
+            await d1.prepare(sql).run();
+          } catch {
+            // The column already exists on a current schema; continue startup.
+          }
         }
         initialized = true;
       } catch (e) {
@@ -97,7 +132,7 @@ export async function ensureDbInitialized() {
 export function getDb() {
   if (!env.DB) {
     throw new Error(
-      "Cloudflare D1 binding \`DB\` is unavailable. Set the \`d1\` field in .openai/hosting.json to \`DB\` or let your control plane inject the real binding values before using the database."
+      "Cloudflare D1 binding `DB` is unavailable. Set the `d1` field in .openai/hosting.json to `DB` or let your control plane inject the real binding values before using the database.",
     );
   }
 

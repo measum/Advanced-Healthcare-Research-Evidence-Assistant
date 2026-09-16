@@ -20,16 +20,21 @@ const CALLBACK_PATH = "/callback";
 
 export const DEFAULT_RESEARCHER_USER: ChatGPTUser = {
   userId: "usr_usman_iqbal",
-  displayName: "Dr. Usman Iqbal",
+  displayName: "Dr. Usman Iqabl",
   email: "dr.usman.iqbal@aiotie.org",
-  fullName: "Dr. Usman Iqbal",
+  fullName: "Dr. Usman Iqabl",
 };
 
 export async function getChatGPTUser(): Promise<ChatGPTUser | null> {
   const requestHeaders = await headers();
   const userId = requestHeaders.get(USER_ID_HEADER);
   const email = requestHeaders.get(USER_EMAIL_HEADER);
-  if (!userId || !email) return DEFAULT_RESEARCHER_USER;
+  // The local Vite/Vinext preview has no dispatch identity headers. Keep the
+  // development convenience identity there, but never grant a default user in
+  // a production request with missing authentication headers.
+  if (!userId || !email) {
+    return process.env.NODE_ENV === "production" ? null : DEFAULT_RESEARCHER_USER;
+  }
 
   const encodedFullName = requestHeaders.get(USER_FULL_NAME_HEADER);
   const fullName =

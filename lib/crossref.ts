@@ -2,6 +2,8 @@ import type { LiteratureRecord } from "./europe-pmc";
 
 export type VerifiedLiteratureRecord = LiteratureRecord & {
   verificationStatus: "verified" | "unverified";
+  verificationReason: string;
+  verifiedAt: string;
 };
 
 function normalize(value: string): string[] {
@@ -14,24 +16,41 @@ function titlesAgree(left: string, right: string): boolean {
   return rightWords.length > 0 && rightWords.filter((word) => leftWords.has(word)).length >= Math.min(3, rightWords.length);
 }
 
+function result(
+  record: LiteratureRecord,
+  verificationStatus: "verified" | "unverified",
+  verificationReason: string,
+): VerifiedLiteratureRecord {
+  return {
+    ...record,
+    verificationStatus,
+    verificationReason,
+    verifiedAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * Verify DOI metadata against Crossref. Network failure is never treated as
+ * proof of a valid DOI; those records remain explicitly unverified.
+ */
 export async function verifyDoi(record: LiteratureRecord): Promise<VerifiedLiteratureRecord> {
-  if (!record.doi) return { ...record, verificationStatus: "unverified" };
+  if (!record.doi) return result(record, "unverified", "No DOI was supplied by the literature index.");
+
   try {
     const response = await fetch("https://api.crossref.org/works/" + encodeURIComponent(record.doi), {
-      headers: { accept: "application/json" },
+      headers: { accept: "application/json", "user-agent": "AIOTIE-Research/1.0 (mailto:research@aiotie.org)" },
       signal: AbortSignal.timeout(3_000),
     });
-    if (!response.ok) return { ...record, verificationStatus: "unverified" };
+    if (!response.ok) return result(record, "unverified", `Crossref returned HTTP ${response.status}.`);
+
     const data = await response.json() as { message?: { DOI?: string; title?: string[] } };
     const title = data.message?.title?.[0];
     const sameDoi = data.message?.DOI?.toLowerCase() === record.doi.toLowerCase();
-    return { ...record, verificationStatus: sameDoi && !!title && titlesAgree(record.title, title) ? "verified" : "unverified" };
-  } catch {
-    // Graceful offline verification for standard peer-reviewed bibliographic registries
-    const isPeerReviewedDoi = /^10\.(1056|1016|1038|1001|1136|1161|1200|2589|2214|1470|1474)\//i.test(record.doi);
-    if (isPeerReviewedDoi && record.title && record.title.length > 10) {
-      return { ...record, verificationStatus: "verified" };
+    if (sameDoi && !!title && titlesAgree(record.title, title)) {
+      return result(record, "verified", "Crossref DOI and title metadata matched.");
     }
-    return { ...record, verificationStatus: "unverified" };
+    return result(record, "unverified", "Crossref metadata did not match the supplied DOI and title.");
+  } catch {
+    return result(record, "unverified", "Crossref could not be reached; DOI was not verified.");
   }
 }

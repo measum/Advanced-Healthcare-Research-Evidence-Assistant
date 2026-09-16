@@ -1,6 +1,21 @@
-# vinext-starter
+# AIOTIE Research
 
-A clean full-stack starter running on [vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and Drizzle support.
+**Advanced Initiatives On Technology, Innovation & Energy**
+AI-powered healthcare and biomedical research workspace for Dr. Usman Iqabl.
+
+AIOTIE Research is an evidence-first research partner: it retrieves and verifies literature, preserves source provenance, processes uploaded papers conservatively, identifies retrieval-set evidence gaps, drafts research structures, and provides bounded descriptive dataset inspection. It is not a clinical decision system and does not replace qualified clinical, statistical, ethics, or research oversight.
+
+The current repository contains a functional prototype plus the hardened evidence/retrieval milestone documented in [`PROJECT_STATUS.md`](./PROJECT_STATUS.md). Major workflows are intentionally labeled draft-only or unavailable until their data, provenance, and persistence paths are implemented.
+
+## Product workflow
+
+`Question → evidence retrieval → source verification → full-text availability → paper processing → gap signals → research opportunity → protocol/statistics drafts`
+
+The deterministic literature path does not generate fabricated papers, citations, effect estimates, or clinical conclusions. When a provider or literature service is unavailable, the application reports that limitation.
+
+## Technical foundation
+
+A full-stack application running on [vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1, R2, and Drizzle support.
 
 ## Prerequisites
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractPdfText } from "../lib/pdf-parser";
+import { extractPdfText, inspectPdfBytes } from "../lib/pdf-parser";
 
 describe("PDF parser", () => {
   it("extracts text from plain PDF stream", () => {
@@ -38,5 +38,13 @@ trailer
     const result = extractPdfText(buffer);
     expect(result.pageCount).toBe(1);
     expect(result.text).toBe("");
+  });
+
+  it("flags active PDF content for rejection before storage", () => {
+    const buffer = new TextEncoder().encode("%PDF-1.4 /JavaScript (alert) /Launch");
+    expect(inspectPdfBytes(buffer)).toMatchObject({
+      isPdf: true,
+      suspiciousFeatures: ["embedded JavaScript", "launch action"],
+    });
   });
 });

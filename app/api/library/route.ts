@@ -11,13 +11,21 @@ export async function GET() {
     await ensureDbInitialized();
     const rows = await getDb().select({
       sourceId: retrievedSources.id,
+      externalId: retrievedSources.externalId,
       title: retrievedSources.title,
+      authors: retrievedSources.authors,
       journal: retrievedSources.journal,
       year: retrievedSources.publicationYear,
+      publicationType: retrievedSources.publicationType,
+      abstract: retrievedSources.abstract,
       doi: retrievedSources.doi,
       pmid: retrievedSources.pmid,
+      pmcid: retrievedSources.pmcid,
       url: retrievedSources.canonicalUrl,
+      fullTextUrl: retrievedSources.fullTextUrl,
+      fullTextAvailable: retrievedSources.fullTextAvailable,
       verificationStatus: retrievedSources.verificationStatus,
+      verificationReason: retrievedSources.verificationReason,
       query: searchRuns.query,
       retrievedAt: searchRuns.createdAt,
     }).from(retrievedSources)
