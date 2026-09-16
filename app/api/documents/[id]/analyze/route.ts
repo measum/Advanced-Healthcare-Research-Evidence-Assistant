@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { getChatGPTUser } from "../../../../chatgpt-auth";
-import { getDb, getDocumentBucket } from "../../../../../db";
+import { getDb, getDocumentBucket, ensureDbInitialized } from "../../../../../db";
 import { paperAnalyses, uploadedDocuments } from "../../../../../db/schema";
 import { analyzePdfDocument } from "../../../../../lib/research-provider";
 import { writeAuditEvent } from "../../../../../lib/audit";
@@ -11,6 +11,7 @@ export async function POST(_: Request, context: { params: Promise<{ id: string }
   if (!user) return NextResponse.json({ error: "Sign in to analyze a document." }, { status: 401 });
   const { id } = await context.params;
   try {
+    await ensureDbInitialized();
     const [document] = await getDb().select().from(uploadedDocuments)
       .where(and(eq(uploadedDocuments.id, id), eq(uploadedDocuments.ownerId, user.userId))).limit(1);
     if (!document) return NextResponse.json({ error: "Document not found." }, { status: 404 });
@@ -36,6 +37,7 @@ export async function GET(_: Request, context: { params: Promise<{ id: string }>
   if (!user) return NextResponse.json({ error: "Sign in to view an analysis." }, { status: 401 });
   const { id } = await context.params;
   try {
+    await ensureDbInitialized();
     const [analysis] = await getDb().select({ content: paperAnalyses.content, model: paperAnalyses.model, updatedAt: paperAnalyses.updatedAt })
       .from(paperAnalyses).where(and(eq(paperAnalyses.documentId, id), eq(paperAnalyses.ownerId, user.userId))).limit(1);
     if (!analysis) return NextResponse.json({ error: "No saved analysis exists for this document." }, { status: 404 });

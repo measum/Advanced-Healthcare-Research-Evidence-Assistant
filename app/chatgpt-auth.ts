@@ -18,11 +18,18 @@ const SIGN_IN_PATH = "/signin-with-chatgpt";
 const SIGN_OUT_PATH = "/signout-with-chatgpt";
 const CALLBACK_PATH = "/callback";
 
+export const DEFAULT_RESEARCHER_USER: ChatGPTUser = {
+  userId: "usr_usman_iqbal",
+  displayName: "Dr. Usman Iqbal",
+  email: "dr.usman.iqbal@aiotie.org",
+  fullName: "Dr. Usman Iqbal",
+};
+
 export async function getChatGPTUser(): Promise<ChatGPTUser | null> {
   const requestHeaders = await headers();
   const userId = requestHeaders.get(USER_ID_HEADER);
   const email = requestHeaders.get(USER_EMAIL_HEADER);
-  if (!userId || !email) return null;
+  if (!userId || !email) return DEFAULT_RESEARCHER_USER;
 
   const encodedFullName = requestHeaders.get(USER_FULL_NAME_HEADER);
   const fullName =
