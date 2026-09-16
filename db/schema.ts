@@ -44,3 +44,16 @@ export const uploadedDocuments = sqliteTable("uploaded_documents", {
   processingStatus: text("processing_status").notNull(),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 }, (table) => [index("idx_uploaded_documents_owner_created").on(table.ownerId, table.createdAt)]);
+
+export const paperAnalyses = sqliteTable("paper_analyses", {
+  id: text("id").primaryKey(),
+  documentId: text("document_id").notNull().references(() => uploadedDocuments.id, { onDelete: "cascade" }),
+  ownerId: text("owner_id").notNull(),
+  content: text("content").notNull(),
+  model: text("model").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+}, (table) => [
+  uniqueIndex("idx_paper_analyses_document").on(table.documentId),
+  index("idx_paper_analyses_owner_updated").on(table.ownerId, table.updatedAt),
+]);
